@@ -3,6 +3,7 @@ package lgbt.faith.chiyoko.config
 import com.google.gson.GsonBuilder
 import lgbt.faith.chiyoko.Chiyoko
 import lgbt.faith.chiyoko.rand.Xoroshiro128PlusPlus
+import lgbt.faith.chiyoko.sequences.Sequence
 import net.fabricmc.loader.api.FabricLoader
 import kotlin.io.path.createDirectories
 import kotlin.io.path.exists
@@ -70,7 +71,7 @@ data class ChiyokoConfig(
 
 class ChiyokoConfigManager {
     companion object {
-        const val CURRENT_CONFIG_VERSION = 2
+        const val CURRENT_CONFIG_VERSION = 3
     }
 
     private val gson = GsonBuilder().setPrettyPrinting().create()
@@ -152,5 +153,9 @@ class ChiyokoConfigManager {
         )
 
         save()
+    }
+
+    fun updateSequence(sequence: Sequence, advanceBy: Long = 1) {
+        updateSequence(Chiyoko.worldName, Chiyoko.seed, sequence.getRngCopy(), sequence.key, advanceBy)
     }
 }

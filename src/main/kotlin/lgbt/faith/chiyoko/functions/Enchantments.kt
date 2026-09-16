@@ -198,15 +198,9 @@ object EligibleEnchantments {
     val AXE = setOf(
         "efficiency", "fortune", "silk_touch", "unbreaking", "mending", "vanishing_curse",
     )
-    val PICKAXE = setOf(
-        "efficiency", "fortune", "silk_touch", "unbreaking", "mending", "vanishing_curse",
-    )
-    val SHOVEL = setOf(
-        "efficiency", "fortune", "silk_touch", "unbreaking", "mending", "vanishing_curse",
-    )
-    val HOE = setOf(
-        "efficiency", "fortune", "silk_touch", "unbreaking", "mending", "vanishing_curse",
-    )
+    val PICKAXE = AXE
+    val SHOVEL = AXE
+    val HOE = AXE
     val HELMET = setOf(
         "protection", "fire_protection", "blast_protection", "projectile_protection",
         "respiration", "aqua_affinity", "thorns", "unbreaking", "mending", "vanishing_curse", "binding_curse",
@@ -242,7 +236,12 @@ object EligibleEnchantments {
     )
     val BOOK = Enchantment.ALL.map { it.id }.toSet()
     val FISHING = BOOK.filter { it !in listOf("wind_burst", "soul_speed", "swift_sneak")}.toSet() // these are exclusive to certain structures
-    val ENCHANT_TABLE = BOOK.filter { it !in listOf("wind_burst", "soul_speed", "swift_sneak", "mending", "vanishing_curse", "binding_curse", "frost_walker")}.toSet() // these are treasure
+    val ENCHANT_TABLE = FISHING.filter { it !in listOf("mending", "vanishing_curse", "binding_curse", "frost_walker")}.toSet() // these are treasure
+
+    fun legacyOrderIndex(id: String): Int {
+        val index = LEGACY_REGISTRY_ORDER.indexOf(id)
+        return if (index == -1) Int.MAX_VALUE else index
+    }
 
     fun getEligibleEnchantments(item: Item): Set<String> {
         return when (item) {

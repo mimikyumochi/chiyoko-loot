@@ -80,13 +80,12 @@ class ChiyokoRenderer {
 
         if (
         /*? if >=26.2 {*/
-        /*mc.gui.hud.isHidden
-        *//*?} else {*/
-            mc.options.hideGui
-        /*?}*/
+        mc.gui.hud.isHidden
+        /*?} else {*/
+            /*mc.options.hideGui
+        *//*?}*/
             ) return
         var hoveredItem: ItemStack? = null
-        val mc = Minecraft.getInstance()
 
         val player = mc.player ?: return
         val level = mc.level ?: return

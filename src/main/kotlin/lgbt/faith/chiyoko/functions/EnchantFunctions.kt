@@ -1,6 +1,5 @@
 package lgbt.faith.chiyoko.functions
 
-import lgbt.faith.chiyoko.functions.EligibleEnchantments.LEGACY_REGISTRY_ORDER
 import lgbt.faith.chiyoko.rand.LCG
 import lgbt.faith.chiyoko.rand.Xoroshiro128PlusPlus
 import lgbt.faith.chiyoko.sendOverlay
@@ -45,7 +44,7 @@ object EnchantFunctions {
     fun getEnchantment(id: String) = enchantmentIdentifierToHolder(id)
 
     // returns custom enchantment object
-    private fun getEnchantmentObject(id: String) =  Enchantment.ALL.find { it.id == id }
+    private fun getEnchantmentObject(id: String) = Enchantment[id]
 
 
     fun enchantRandomlyCore(nextInt: (Int) -> Int, options: List<String>): MinecraftEnchantmentInstance? {
@@ -53,7 +52,6 @@ object EnchantFunctions {
         val validHolders: List<Enchantment> =
             options.mapNotNull { getEnchantmentObject(it) }
 
-        sendOverlay("$validHolders")
         if (validHolders.isEmpty()) return null
 
         val holder = validHolders[nextInt(validHolders.size)]
@@ -107,6 +105,15 @@ object EnchantFunctions {
     fun enchantWithLevels(rng: LCG, enchantability: Int, eligibleIds: Set<String>, baseCost: Int = 30, legacyOrder: Boolean = true)
         = enchantWithLevelsCore(rng::nextInt, rng::nextFloat, enchantability, eligibleIds, baseCost, legacyOrder)
 
+    // enchanting table slot roll; books drop one random enchant when more than one is rolled
+    fun enchantTableSlot(rng: LCG, enchantability: Int, eligibleIds: Set<String>, baseCost: Int, isBook: Boolean): MutableList<MinecraftEnchantmentInstance> {
+        val results = enchantWithLevels(rng, enchantability, eligibleIds, baseCost).toMutableList()
+        if (results.size > 1 && isBook) {
+            results.removeAt(rng.nextInt(results.size))
+        }
+        return results
+    }
+
 
     private fun getAvailableEnchantments(
         cost: Int,
@@ -115,10 +122,7 @@ object EnchantFunctions {
     ): List<EnchantmentInstance> {
 
         val allEnchants = if (legacyOrder) {
-            Enchantment.ALL.sortedBy { def ->
-                val index = LEGACY_REGISTRY_ORDER.indexOf(def.id)
-                if (index == -1) Int.MAX_VALUE else index
-            }
+            Enchantment.ALL.sortedBy { def -> EligibleEnchantments.legacyOrderIndex(def.id) }
         } else {
             Enchantment.ALL
         }

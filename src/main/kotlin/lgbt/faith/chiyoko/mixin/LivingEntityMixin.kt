@@ -3,12 +3,11 @@ package lgbt.faith.chiyoko.mixin
 import lgbt.faith.chiyoko.DropEventState
 import lgbt.faith.chiyoko.PendingShulkerDeath
 import lgbt.faith.chiyoko.PendingWitherDeath
+import lgbt.faith.chiyoko.enchantmentLevel
 import net.minecraft.client.Minecraft
-import net.minecraft.core.registries.Registries
 import net.minecraft.world.entity.LivingEntity
 import net.minecraft.world.entity.monster.Shulker
 import net.minecraft.world.entity.monster.skeleton.WitherSkeleton
-import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.injection.At
@@ -27,9 +26,7 @@ class LivingEntityMixin {
         val mc = Minecraft.getInstance()
         val player = mc.player ?: return
 
-        val enchantLookup = entity.level().registryAccess().lookup(Registries.ENCHANTMENT).orElse(null) ?: return
-        val lootingHolder = enchantLookup.get(Enchantments.LOOTING).orElse(null)
-        val lootingLevel = if (lootingHolder != null) EnchantmentHelper.getItemEnchantmentLevel(lootingHolder, player.mainHandItem) else 0
+        val lootingLevel = enchantmentLevel(entity.level(), Enchantments.LOOTING, player.mainHandItem) ?: return
 
         if (entity is WitherSkeleton) {
             val playerKilled = DropEventState.recentlyAttackedWithers.remove(entity.id)

@@ -7,38 +7,34 @@ import net.minecraft.world.phys.Vec3
 import java.util.concurrent.ConcurrentLinkedQueue
 
 
-class PendingGravelBreak(val pos: Vec3, val fortune: Int) {
+abstract class PendingDrop {
     var ticksWaited = 0
     val collectedItems = mutableListOf<ItemStack>()
     var collectingSince = -1
+
+    fun collect(itemStack: ItemStack) {
+        collectedItems.add(itemStack)
+        if (collectingSince == -1) collectingSince = 0
+    }
+}
+
+class PendingGravelBreak(val pos: Vec3, val fortune: Int) : PendingDrop() {
     companion object { const val MAX_TICKS = 40; const val COLLECT_WINDOW = 5; const val RADIUS = 4.0 }
 }
 
-class PendingWitherDeath(val pos: Vec3, val looting: Int, val playerKilled: Boolean) {
-    var ticksWaited = 0
-    val collectedItems = mutableListOf<ItemStack>()
-    var collectingSince = -1
+class PendingWitherDeath(val pos: Vec3, val looting: Int, val playerKilled: Boolean) : PendingDrop() {
     companion object { const val MAX_TICKS = 12; const val COLLECT_WINDOW = 10; const val RADIUS = 5.0 }
 }
 
-class PendingShulkerDeath(val pos: Vec3, val looting: Int) {
-    var ticksWaited = 0
-    val collectedItems = mutableListOf<ItemStack>()
-    var collectingSince = -1
+class PendingShulkerDeath(val pos: Vec3, val looting: Int) : PendingDrop() {
     companion object { const val MAX_TICKS = 12; const val COLLECT_WINDOW = 10; const val RADIUS = 5.0 }
 }
 
-class PendingFishingReel(val pos: Vec3, val luck: Int, val isOpenWater: Boolean, val isJungle: Boolean) {
-    var ticksWaited = 0
-    val collectedItems = mutableListOf<ItemStack>()
-    var collectingSince = -1
+class PendingFishingReel(val pos: Vec3, val luck: Int, val isOpenWater: Boolean, val isJungle: Boolean) : PendingDrop() {
     companion object { const val MAX_TICKS = 60; const val COLLECT_WINDOW = 5; const val RADIUS = 8.0 }
 }
 
-class PendingPiglinBarter(val piglinId: Int) {
-    var ticksWaited = 0
-    val collectedItems = mutableListOf<ItemStack>()
-    var collectingSince = -1
+class PendingPiglinBarter(val piglinId: Int) : PendingDrop() {
     companion object { const val MAX_TICKS = 500; const val COLLECT_WINDOW = 10; const val RADIUS = 8.0 }
 }
 

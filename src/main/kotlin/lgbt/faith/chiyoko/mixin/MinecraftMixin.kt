@@ -40,12 +40,35 @@ class MinecraftMixin {
         for (candidate in list) {
             if (!isEligible(candidate)) continue
             val d = posOf(candidate).distanceTo(itemPos)
-            if (d <= bestDist) {
+            // strictly closer, so an exact tie keeps the oldest candidate - two breaks at the
+            // same block have identical distances and must be filled in the order they rolled.
+            if (d < bestDist) {
                 best = candidate
                 bestDist = d
             }
         }
         return best
+    }
+
+    private inline fun <T : PendingDrop> processPending(
+        list: MutableList<T>,
+        collectWindow: Int,
+        maxTicks: Int,
+        onDone: (T) -> Unit,
+    ) {
+        val iter = list.iterator()
+        while (iter.hasNext()) {
+            val p = iter.next()
+            if (p.collectingSince >= 0) p.collectingSince++
+            p.ticksWaited++
+
+            val ready = p.collectingSince >= collectWindow
+            val expired = p.ticksWaited >= maxTicks
+            if (!ready && !expired) continue
+
+            onDone(p)
+            iter.remove()
+        }
     }
 
     @Inject(method = ["tick"], at = [At("HEAD")])
@@ -160,56 +183,23 @@ class MinecraftMixin {
 
         for ((itemPos, itemStack) in newItems) {
             // gravel and fishing each drop exactly 1 item, so fill those first.
-            val gravel = nearestEligible(
+            val target: PendingDrop? = nearestEligible(
                 DropEventState.pendingGravels, PendingGravelBreak.RADIUS, itemPos,
                 isEligible = { it.collectedItems.isEmpty() },
                 posOf = { it.pos },
-            )
-
-            if (gravel != null) {
-                gravel.collectedItems.add(itemStack)
-                if (gravel.collectingSince == -1) gravel.collectingSince = 0
-                continue
-            }
-
-            val fishing = nearestEligible(
+            ) ?: nearestEligible(
                 DropEventState.pendingFishing, PendingFishingReel.RADIUS, itemPos,
                 isEligible = { it.collectedItems.isEmpty() },
                 posOf = { it.pos },
-            )
-
-            if (fishing != null) {
-                fishing.collectedItems.add(itemStack)
-                if (fishing.collectingSince == -1) fishing.collectingSince = 0
-                continue
-            }
-
-            val wither = nearestEligible(
+            ) ?: nearestEligible(
                 DropEventState.pendingWithers, PendingWitherDeath.RADIUS, itemPos,
                 isEligible = { it.collectedItems.size < 3 },
                 posOf = { it.pos },
-            )
-
-            val shulker = nearestEligible(
+            ) ?: nearestEligible(
                 DropEventState.pendingShulkers, PendingShulkerDeath.RADIUS, itemPos,
                 isEligible = { it.collectedItems.isEmpty() },
                 posOf = { it.pos },
-            )
-
-
-            if (wither != null) {
-                wither.collectedItems.add(itemStack)
-                if (wither.collectingSince == -1) wither.collectingSince = 0
-                continue
-            }
-
-            if (shulker != null) {
-                shulker.collectedItems.add(itemStack)
-                if (shulker.collectingSince == -1) shulker.collectingSince = 0
-                continue
-            }
-
-            val barter = nearestEligible(
+            ) ?: nearestEligible(
                 DropEventState.pendingBarters, PendingPiglinBarter.RADIUS, itemPos,
                 isEligible = { it.collectedItems.isEmpty() && it.ticksWaited >= 115 },
                 posOf = { pending ->
@@ -217,35 +207,43 @@ class MinecraftMixin {
                 },
             )
 
-            if (barter != null) {
-                barter.collectedItems.add(itemStack)
-                if (barter.collectingSince == -1) barter.collectingSince = 0
-            }
+            target?.collect(itemStack)
         }
     }
 
     // gravel
 
+    // gravel rolls are consumed in break order, so only the head of the queue may resolve.
+    // letting a later break resolve first compares its drop against an earlier break's roll.
     private fun processGravels() {
-        val iter = DropEventState.pendingGravels.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
+        val pending = DropEventState.pendingGravels
+
+        for (p in pending) {
             if (p.collectingSince >= 0) p.collectingSince++
             p.ticksWaited++
+        }
 
-            val ready = p.collectingSince >= PendingGravelBreak.COLLECT_WINDOW
-            val expired = p.ticksWaited >= PendingGravelBreak.MAX_TICKS
-            if (!ready && !expired) continue
+        while (pending.isNotEmpty()) {
+            val head = pending.first()
+            val ready = head.collectingSince >= PendingGravelBreak.COLLECT_WINDOW
+            val expired = head.ticksWaited >= PendingGravelBreak.MAX_TICKS
+            if (!ready && !expired) break
 
-            if (p.collectedItems.isNotEmpty()) resolveGravel(p)
-            iter.remove()
+            pending.removeAt(0)
+            if (head.collectedItems.isNotEmpty()) resolveGravel(head) else advanceMissedGravel()
         }
     }
 
-    private fun resolveGravel(p: PendingGravelBreak) {
-        if (Chiyoko.configManager.config.getOverlay("minecraft:blocks/gravel").tracked != true) return
+    // the server rolled for this break even though its item never reached us, so the sequence
+    // still has to move on - dropping it silently leaves every later break one roll behind.
+    private fun advanceMissedGravel() {
+        val gravel = trackedSequence<Gravel>("minecraft:blocks/gravel") ?: return
+        gravel.advance(1)
+        Chiyoko.configManager.updateSequence(gravel)
+    }
 
-        val gravel = Chiyoko.sequences.map["minecraft:blocks/gravel"] as? Gravel ?: return
+    private fun resolveGravel(p: PendingGravelBreak) {
+        val gravel = trackedSequence<Gravel>("minecraft:blocks/gravel") ?: return
 
         val actual = p.collectedItems.first()
         // avoid potential misroutes which will cause the game to hang as it infinitely writes to the config file for desyncs.
@@ -257,7 +255,7 @@ class MinecraftMixin {
         gravel.advance(1)
         var desynced = actual.item != predicted.firstOrNull()?.item
         if (!desynced || !isMatchingSeed()) {
-            Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, gravel.getRngCopy(), gravel.key)
+            Chiyoko.configManager.updateSequence(gravel)
             return
         }
 
@@ -269,39 +267,27 @@ class MinecraftMixin {
             gravel.advance(1)
             desynced = actual.item != predicted.firstOrNull()?.item
         }
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, gravel.getRngCopy(), gravel.key, advances)
+        Chiyoko.configManager.updateSequence(gravel, advances)
 
         sendOverlay("advanced $advances times to account for desync")
     }
 
     // shulker
     private fun processShulkers() {
-        val iter = DropEventState.pendingShulkers.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
-            if (p.collectingSince >= 0) p.collectingSince++
-            p.ticksWaited++
-
-            val ready = p.collectingSince >= PendingShulkerDeath.COLLECT_WINDOW
-            val expired = p.ticksWaited >= PendingShulkerDeath.MAX_TICKS
-            if (!ready && !expired) continue
-
+        processPending(DropEventState.pendingShulkers, PendingShulkerDeath.COLLECT_WINDOW, PendingShulkerDeath.MAX_TICKS) { p ->
             val genuinelyEmpty = p.collectingSince == -1
             if (p.collectedItems.isNotEmpty() || genuinelyEmpty) resolveShulkers(p)
-            iter.remove()
         }
     }
     private fun resolveShulkers(p: PendingShulkerDeath) {
-        if (Chiyoko.configManager.config.getOverlay("minecraft:entities/shulker").tracked != true) return
-
-        val shulkerSeq = Chiyoko.sequences.map["minecraft:entities/shulker"] as Shulker
+        val shulkerSeq = trackedSequence<Shulker>("minecraft:entities/shulker") ?: return
 
         val actualDrops = p.collectedItems.filter { it.item != Items.AIR }
         if (actualDrops.any { drop -> drop.item !in shulkerSeq.lootTable }) return
 
         val predictedDrops = shulkerSeq.roll(RollType.NextDrop, p.looting)
         shulkerSeq.advance(1, p.looting)
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, shulkerSeq.getRngCopy(), shulkerSeq.key)
+        Chiyoko.configManager.updateSequence(shulkerSeq)
 
 
         if (matchesPrediction(actualDrops, predictedDrops) || !isMatchingSeed()) return
@@ -314,38 +300,20 @@ class MinecraftMixin {
             rollBranch = { xoro, hasLooting -> shulkerSeq.nextDrops(xoro, if (hasLooting) p.looting else 0) },
         )
 
-        if (result != null) {
-            val (found, advancements) = result
-            Chiyoko.configManager.updateSequence(
-                Chiyoko.worldName, Chiyoko.seed, found, shulkerSeq.key, advancements.toLong()
-            )
-            sendOverlay("advanced $advancements times to account for desync")
-        }
+        applyDesyncFix(result, shulkerSeq)
     }
 
     // wither skeleton
 
     private fun processWithers() {
-        val iter = DropEventState.pendingWithers.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
-            if (p.collectingSince >= 0) p.collectingSince++
-            p.ticksWaited++
-
-            val ready = p.collectingSince >= PendingWitherDeath.COLLECT_WINDOW
-            val expired = p.ticksWaited >= PendingWitherDeath.MAX_TICKS
-            if (!ready && !expired) continue
-
+        processPending(DropEventState.pendingWithers, PendingWitherDeath.COLLECT_WINDOW, PendingWitherDeath.MAX_TICKS) { p ->
             val genuinelyEmpty = p.collectingSince == -1
             if (p.collectedItems.isNotEmpty() || genuinelyEmpty) resolveWither(p)
-            iter.remove()
         }
     }
 
     private fun resolveWither(p: PendingWitherDeath) {
-        if (Chiyoko.configManager.config.getOverlay("minecraft:entities/wither_skeleton").tracked != true) return
-
-        val witherSeq = Chiyoko.sequences.map["minecraft:entities/wither_skeleton"] as? WitherSkeleton ?: return
+        val witherSeq = trackedSequence<WitherSkeleton>("minecraft:entities/wither_skeleton") ?: return
 
         val actualDrops = p.collectedItems.filter { it.item != Items.AIR }
 
@@ -356,7 +324,7 @@ class MinecraftMixin {
             p.playerKilled, p.looting
         )
         witherSeq.advance(1, p.playerKilled, p.looting)
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, witherSeq.getRngCopy(), witherSeq.key)
+        Chiyoko.configManager.updateSequence(witherSeq)
 
         if (matchesPrediction(actualDrops, predictedDrops) || !isMatchingSeed()) return
 
@@ -370,27 +338,12 @@ class MinecraftMixin {
             },
         )
 
-        if (result != null) {
-            val (found, advancements) = result
-            Chiyoko.configManager.updateSequence(
-                Chiyoko.worldName, Chiyoko.seed, found, witherSeq.key, advancements.toLong()
-            )
-            sendOverlay("advanced $advancements times to account for desync")
-        }
+        applyDesyncFix(result, witherSeq)
     }
 
     // fishing
     private fun processFishing() {
-        val iter = DropEventState.pendingFishing.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
-            if (p.collectingSince >= 0) p.collectingSince++
-            p.ticksWaited++
-
-            val ready = p.collectingSince >= PendingFishingReel.COLLECT_WINDOW
-            val expired = p.ticksWaited >= PendingFishingReel.MAX_TICKS
-            if (!ready && !expired) continue
-
+        processPending(DropEventState.pendingFishing, PendingFishingReel.COLLECT_WINDOW, PendingFishingReel.MAX_TICKS) { p ->
             if (p.collectedItems.isNotEmpty()) {
                 for (item in p.collectedItems) {
                     if (recentCatches.size >= MAX_CATCH_HISTORY) recentCatches.removeFirst()
@@ -398,26 +351,22 @@ class MinecraftMixin {
                 }
                 resolveFishing(p)
             }
-            iter.remove()
         }
     }
     private fun resolveFishing(p: PendingFishingReel) {
-        if (Chiyoko.configManager.config.getOverlay("minecraft:gameplay/fishing").tracked != true) return
-
-        val fishing = Chiyoko.sequences.map["minecraft:gameplay/fishing"] as? Fishing ?: return
+        val fishing = trackedSequence<Fishing>("minecraft:gameplay/fishing") ?: return
 
         val actual = p.collectedItems.first()
 
         // avoid potential misroutes which will cause the game to hang as it infinitely writes to the config file for desyncs.
-        val isFishDrop = Fishing.fishTable().any { it.item.item == actual.item } ||
-                         Fishing.junkTable(true).any { it.item.item == actual.item } ||
-                         Fishing.treasureTable().any { it.item.item == actual.item }
+        val isFishDrop = (Fishing.fishTable() + Fishing.junkTable(true) + Fishing.treasureTable())
+            .any { it.item.item == actual.item }
 
         if (!isFishDrop) return
 
         val predicted = fishing.peek(1, p.luck, p.isOpenWater, p.isJungle)
         fishing.advance(1, p.luck, p.isOpenWater, p.isJungle)
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, fishing.getRngCopy(), fishing.key)
+        Chiyoko.configManager.updateSequence(fishing)
 
         var desynced = actual.item != predicted.first().item
 
@@ -443,7 +392,7 @@ class MinecraftMixin {
         }
 
         if (rngAdvances > 0) {
-            Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, fishing.getRngCopy(), fishing.key, rngAdvances)
+            Chiyoko.configManager.updateSequence(fishing, rngAdvances)
         }
 
         sendOverlay("advanced $advances times to account for desync (matched ${catchList.size} items)")
@@ -467,25 +416,13 @@ class MinecraftMixin {
     // piglin bartering
 
     private fun processBarters() {
-        val iter = DropEventState.pendingBarters.iterator()
-        while (iter.hasNext()) {
-            val p = iter.next()
-            p.ticksWaited++
-            if (p.collectingSince >= 0) p.collectingSince++
-
-            val ready = p.collectingSince >= PendingPiglinBarter.COLLECT_WINDOW
-            val expired = p.ticksWaited >= PendingPiglinBarter.MAX_TICKS
-            if (!ready && !expired) continue
-
+        processPending(DropEventState.pendingBarters, PendingPiglinBarter.COLLECT_WINDOW, PendingPiglinBarter.MAX_TICKS) { p ->
             if (p.collectedItems.isNotEmpty()) resolveBarter(p)
-            iter.remove()
         }
     }
 
     private fun resolveBarter(p: PendingPiglinBarter) {
-        if (Chiyoko.configManager.config.getOverlay("minecraft:gameplay/piglin_bartering").tracked != true) return
-
-        val barter = Chiyoko.sequences.map["minecraft:gameplay/piglin_bartering"] as? PiglinBartering ?: return
+        val barter = trackedSequence<PiglinBartering>("minecraft:gameplay/piglin_bartering") ?: return
 
         val actual = p.collectedItems.firstOrNull() ?: return
 
@@ -493,7 +430,7 @@ class MinecraftMixin {
 
         var predicted = barter.roll(1)
         barter.advance(1)
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, barter.getRngCopy(), barter.key)
+        Chiyoko.configManager.updateSequence(barter)
 
         var desynced = actual.item != predicted.firstOrNull()?.item
         if (!desynced || !isMatchingSeed()) return
@@ -506,7 +443,7 @@ class MinecraftMixin {
             barter.advance(1)
             desynced = actual.item != predicted.firstOrNull()?.item
         }
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, barter.getRngCopy(), barter.key, advances)
+        Chiyoko.configManager.updateSequence(barter, advances)
         sendOverlay("advanced $advances times to account for desync")
 
     }
@@ -540,6 +477,16 @@ class MinecraftMixin {
             }
         }
         return null
+    }
+
+    private fun applyDesyncFix(result: Pair<Xoroshiro128PlusPlus, Int>?, sequence: Sequence) {
+        if (result == null) return
+        val (found, advancements) = result
+        // the bfs searches on copies, so the live sequence has to be moved onto the state it
+        // found - otherwise only the config is corrected and the in-memory rng stays behind.
+        sequence.loadState(found.seedLo, found.seedHi)
+        Chiyoko.configManager.updateSequence(sequence, advancements.toLong())
+        sendOverlay("advanced $advancements times to account for desync")
     }
 
     private fun matchesPrediction(actual: List<ItemStack>, predicted: List<ItemStack>): Boolean {

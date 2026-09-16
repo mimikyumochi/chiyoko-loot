@@ -1,11 +1,9 @@
 package lgbt.faith.chiyoko.mixin
 
 import lgbt.faith.chiyoko.*
-import lgbt.faith.chiyoko.sequences.Vault
 import net.minecraft.client.multiplayer.MultiPlayerGameMode
 import net.minecraft.client.player.LocalPlayer
 import net.minecraft.core.BlockPos
-import net.minecraft.core.registries.Registries
 import net.minecraft.tags.BiomeTags
 import net.minecraft.world.InteractionHand
 import net.minecraft.world.InteractionResult
@@ -14,7 +12,6 @@ import net.minecraft.world.entity.ai.attributes.Attributes
 import net.minecraft.world.entity.monster.skeleton.WitherSkeleton
 import net.minecraft.world.entity.player.Player
 import net.minecraft.world.item.Items
-import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
 import net.minecraft.world.level.block.Blocks
 import net.minecraft.world.level.block.VaultBlock
@@ -56,12 +53,11 @@ class MultiPlayerGameModeMixin {
         if (!player.getItemInHand(hand).`is`(expectedKey)) return
         if (blockState.getValue(VaultBlock.STATE) != VaultState.ACTIVE) return
 
-        val vault = if (isOminous) Chiyoko.sequences.map["minecraft:chests/trial_chambers/reward_ominous"] as? Vault ?: return
-        else           Chiyoko.sequences.map["minecraft:chests/trial_chambers/reward"] as? Vault ?: return
+        val vault = vaultSequence(isOminous) ?: return
 
-        val predictedItems = vault.peek(1)
+        val predictedItems = vault.peek(1, false)
         vault.advance(1)
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, vault.getRngCopy(), vault.key)
+        Chiyoko.configManager.updateSequence(vault)
         VaultInteractionState.pendingVaults.add(PendingVault(pos.immutable(), predictedItems, vault))
     }
 
@@ -83,11 +79,7 @@ class MultiPlayerGameModeMixin {
         if (!(hook as FishingHookAccessor).biting()) return
         val pos = hook.blockPosition()
 
-        val enchantRegistry = level.registryAccess().lookup(Registries.ENCHANTMENT).orElse(null) ?: return
-
-        val luckOfTheSea = enchantRegistry.get(Enchantments.LUCK_OF_THE_SEA)
-            .map { EnchantmentHelper.getItemEnchantmentLevel(it, rod) }
-            .orElse(0) ?: return
+        val luckOfTheSea = enchantmentLevel(level, Enchantments.LUCK_OF_THE_SEA, rod) ?: return
 
         val luck = player.getAttributeValue(Attributes.LUCK).toInt() + luckOfTheSea
         val isOpenWater = (hook as FishingHookAccessor).isOpenWater()

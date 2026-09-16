@@ -19,4 +19,11 @@ interface Sequence {
     }
 
     fun getRngCopy() = xoroshiro.copy()
+
+    companion object {
+        fun rollEntry(rng: Xoroshiro128PlusPlus, table: List<Entry>): ItemStack {
+            val roll = rng.nextInt(table.last().end)
+            return table.first { roll in it.start until it.end }.item
+        }
+    }
 }

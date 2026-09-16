@@ -3,6 +3,7 @@ package lgbt.faith.chiyoko.commands
 import com.mojang.brigadier.CommandDispatcher
 import com.mojang.brigadier.arguments.IntegerArgumentType
 import com.mojang.brigadier.arguments.StringArgumentType
+import com.mojang.brigadier.builder.RequiredArgumentBuilder
 import com.mojang.brigadier.context.CommandContext
 import com.mojang.brigadier.suggestion.Suggestions
 import com.mojang.brigadier.suggestion.SuggestionsBuilder
@@ -17,6 +18,7 @@ import net.minecraft.commands.SharedSuggestionProvider
 import net.minecraft.core.registries.BuiltInRegistries
 import net.minecraft.network.chat.Component
 import net.minecraft.resources.Identifier
+import net.minecraft.world.item.Item
 import java.util.concurrent.CompletableFuture
 
 object PredictEnchant {
@@ -33,75 +35,43 @@ object PredictEnchant {
                         .suggests { _, builder ->
                             itemSuggestions(builder)
                         }
-                        .then(
-                            ClientCommands.argument(
-                                "enchant1",
-                                StringArgumentType.word()
-                            )
-                                .suggests { ctx, builder ->
-                                    enchantSuggestions(ctx, builder)
-                                }
-                                .then(
-                                    ClientCommands.argument(
-                                        "level1",
-                                        IntegerArgumentType.integer(1)
-                                    )
-                                        .suggests { ctx, builder ->
-                                            levelSuggestions(ctx, builder, "enchant1")
-                                        }
-                                        .executes { ctx ->
-                                            execute(ctx.source, 1, ctx)
-                                        }
-                                        .then(
-                                            ClientCommands.argument(
-                                                "enchant2",
-                                                StringArgumentType.word()
-                                            )
-                                                .suggests { ctx, builder ->
-                                                    enchantSuggestions(ctx, builder)
-                                                }
-                                                .then(
-                                                    ClientCommands.argument(
-                                                        "level2",
-                                                        IntegerArgumentType.integer(1)
-                                                    )
-                                                        .suggests { ctx, builder ->
-                                                            levelSuggestions(ctx, builder, "enchant2")
-                                                        }
-                                                        .executes { ctx ->
-                                                            execute(ctx.source, 2, ctx)
-                                                        }
-                                                        .then(
-                                                            ClientCommands.argument(
-                                                                "enchant3",
-                                                                StringArgumentType.word()
-                                                            )
-                                                                .suggests { ctx, builder ->
-                                                                    enchantSuggestions(ctx, builder)
-                                                                }
-                                                                .then(
-                                                                    ClientCommands.argument(
-                                                                        "level3",
-                                                                        IntegerArgumentType.integer(1)
-                                                                    )
-                                                                        .suggests { ctx, builder ->
-                                                                            levelSuggestions(
-                                                                                ctx,
-                                                                                builder,
-                                                                                "enchant3"
-                                                                            )
-                                                                        }
-                                                                        .executes { ctx ->
-                                                                            execute(ctx.source, 3, ctx)
-                                                                        }
-                                                                )
-                                                        )
-                                                )
-                                        )
-                                )
-                        )
+                        .then(enchantArgument(1))
                 )
         )
+    }
+
+    // builds "enchantN levelN [enchantN+1 levelN+1 ...]" up to 3 enchants
+    private fun enchantArgument(index: Int): RequiredArgumentBuilder<FabricClientCommandSource, String> {
+        val levelArgument = ClientCommands.argument(
+            "level$index",
+            IntegerArgumentType.integer(1)
+        )
+            .suggests { ctx, builder ->
+                levelSuggestions(ctx, builder, "enchant$index")
+            }
+            .executes { ctx ->
+                execute(ctx.source, index, ctx)
+            }
+
+        if (index < 3) {
+            levelArgument.then(enchantArgument(index + 1))
+        }
+
+        return ClientCommands.argument(
+            "enchant$index",
+            StringArgumentType.word()
+        )
+            .suggests { ctx, builder ->
+                enchantSuggestions(ctx, builder)
+            }
+            .then(levelArgument)
+    }
+
+    private fun itemFromName(itemName: String): Item? {
+        return BuiltInRegistries.ITEM
+            .get(Identifier.withDefaultNamespace(itemName))
+            .map { it.value() }
+            .orElse(null)
     }
 
 
@@ -138,23 +108,15 @@ object PredictEnchant {
 
         val itemName = StringArgumentType.getString(ctx, "item")
 
-        val item = BuiltInRegistries.ITEM
-            .get(Identifier.withDefaultNamespace(itemName))
-            .map { it.value() }
-            .orElse(null)
-            ?: return builder.buildFuture()
+        val item = itemFromName(itemName) ?: return builder.buildFuture()
 
 
         val used = buildSet {
-
-            try {
-                add(StringArgumentType.getString(ctx, "enchant1"))
-            } catch (_: Exception) {
-            }
-
-            try {
-                add(StringArgumentType.getString(ctx, "enchant2"))
-            } catch (_: Exception) {
+            for (argument in listOf("enchant1", "enchant2")) {
+                try {
+                    add(StringArgumentType.getString(ctx, argument))
+                } catch (_: Exception) {
+                }
             }
         }
 
@@ -196,10 +158,7 @@ object PredictEnchant {
         ctx: CommandContext<FabricClientCommandSource>
     ): Int {
         val itemName = StringArgumentType.getString(ctx, "item")
-        val item = BuiltInRegistries.ITEM
-            .get(Identifier.withDefaultNamespace(itemName))
-            .map { it.value() }
-            .orElse(null)
+        val item = itemFromName(itemName)
 
         if (item == null) {
             source.sendError(
@@ -209,29 +168,11 @@ object PredictEnchant {
             return 0
         }
 
-        val targets = buildList {
-            add(
-                EnchantTarget(
-                    Enchantment[StringArgumentType.getString(ctx, "enchant1")]!!,
-                    IntegerArgumentType.getInteger(ctx, "level1")
-                )
+        val targets = (1..count).map { index ->
+            EnchantTarget(
+                Enchantment[StringArgumentType.getString(ctx, "enchant$index")]!!,
+                IntegerArgumentType.getInteger(ctx, "level$index")
             )
-            if (count >= 2) {
-                add(
-                    EnchantTarget(
-                        Enchantment[StringArgumentType.getString(ctx, "enchant2")]!!,
-                        IntegerArgumentType.getInteger(ctx, "level2")
-                    )
-                )
-            }
-            if (count >= 3) {
-                add(
-                    EnchantTarget(
-                        Enchantment[StringArgumentType.getString(ctx, "enchant3")]!!,
-                        IntegerArgumentType.getInteger(ctx, "level3")
-                    )
-                )
-            }
         }
 
         if (targets.size != targets.toSet().size) {
@@ -252,10 +193,11 @@ object PredictEnchant {
         } else {
             val stacks = result.drops / 64
             val remainder = result.drops % 64
+            val stacksText = "$stacks stack${if (stacks != 1) "s" else ""}"
             val dropsText = when {
                 stacks == 0 -> "$remainder"
-                remainder == 0 -> "$stacks stack${if (stacks != 1) "s" else ""}"
-                else -> "$stacks stack${if (stacks != 1) "s" else ""} and $remainder"
+                remainder == 0 -> stacksText
+                else -> "$stacksText and $remainder"
             }
 
             val message = Component.literal("1. ").withStyle(ChatFormatting.DARK_GREEN)

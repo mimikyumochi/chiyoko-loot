@@ -21,8 +21,7 @@ class PiglinBartering : Sequence {
 
     fun advance(amount: Int = 1) {
         repeat(amount) {
-            val roll = xoroshiro.nextInt(lootTable.last().end)
-            val item = lootTable.first { roll in it.start until it.end }.item
+            val item = Sequence.rollEntry(xoroshiro, lootTable)
             applyFunctions(xoroshiro, item)
         }
     }
@@ -32,9 +31,7 @@ class PiglinBartering : Sequence {
         val rng = xoroshiro.copy()
 
         repeat(amount) {
-            val roll = rng.nextInt(lootTable.last().end)
-
-            val itemStack = lootTable.first { roll in it.start until it.end }.item
+            val itemStack = Sequence.rollEntry(rng, lootTable)
             val info = applyFunctions(rng, itemStack)
 
             val item = itemStack.item

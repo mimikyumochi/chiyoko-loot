@@ -6,6 +6,7 @@ import lgbt.faith.chiyoko.functions.EnchantFunctions
 import lgbt.faith.chiyoko.functions.Enchantability
 import lgbt.faith.chiyoko.functions.ItemFunctions
 import lgbt.faith.chiyoko.rand.Xoroshiro128PlusPlus
+import net.minecraft.core.Holder
 import net.minecraft.core.component.DataComponents
 import net.minecraft.util.Mth
 import net.minecraft.world.item.ItemStack
@@ -13,6 +14,7 @@ import net.minecraft.world.item.Items
 import net.minecraft.world.item.alchemy.PotionContents
 import net.minecraft.world.item.alchemy.Potions
 import net.minecraft.world.item.component.OminousBottleAmplifier
+import net.minecraft.world.item.enchantment.Enchantment
 import net.minecraft.world.item.enchantment.ItemEnchantments
 
 class Vault(val isOminous: Boolean) : Sequence {
@@ -53,7 +55,7 @@ class Vault(val isOminous: Boolean) : Sequence {
         val local = mutableListOf<ItemStack>()
 
         val useRare = rng.nextInt(10) < 8
-        val item = if (useRare) rollWeighted(rng, RARE).copy() else rollWeighted(rng, COMMON).copy()
+        val item = rollWeighted(rng, if (useRare) RARE else COMMON).copy()
         local += applyFunctions(rng, item)
 
         val rolls = rng.nextInt(3) + 1
@@ -92,58 +94,26 @@ class Vault(val isOminous: Boolean) : Sequence {
                     OminousBottleAmplifier(rng.nextInt(3) + 2)
                 ) // 2-4
 
-                Items.CROSSBOW -> {
-                    val levels = ItemFunctions.setCount(rng, 5, 20)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.CROSSBOW, EligibleEnchantments.CROSSBOW, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-
-                Items.DIAMOND_AXE -> {
-                    val levels = ItemFunctions.setCount(rng, 10, 20)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.DIAMOND, EligibleEnchantments.AXE, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-
-                Items.DIAMOND_CHESTPLATE -> {
-                    val levels = ItemFunctions.setCount(rng, 10, 20)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.DIAMOND, EligibleEnchantments.CHESTPLATE, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
+                Items.CROSSBOW -> enchantItem(rng, item, 5, 20, Enchantability.CROSSBOW, EligibleEnchantments.CROSSBOW)
+                Items.DIAMOND_AXE -> enchantItem(rng, item, 10, 20, Enchantability.DIAMOND, EligibleEnchantments.AXE)
+                Items.DIAMOND_CHESTPLATE -> enchantItem(rng, item, 10, 20, Enchantability.DIAMOND, EligibleEnchantments.CHESTPLATE)
 
                 Items.ENCHANTED_BOOK -> {
                     when (item.get(ChiyokoComponents.VARIANT)) {
-                        1 -> {
-                            val enchant = EnchantFunctions.enchantRandomly(rng, listOf("breach", "density"))
-                            if (enchant != null) {
-                                val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
-                                stored.set(enchant.enchantment, enchant.level)
-                                item.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
-                            }
-                        }
+                        1 -> storeRandomEnchant(rng, item, listOf("breach", "density"))
 
                         2 -> {
-                            val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
                             val windBurst = EnchantFunctions.getEnchantment("wind_burst")
                             if (windBurst != null) {
-                                stored.set(windBurst, 1)
-                                item.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
+                                storeEnchant(item, windBurst, 1)
                             }
                         }
 
-                        else -> {
-                            val enchant = EnchantFunctions.enchantRandomly(
-                                rng,
-                                listOf("knockback", "punch", "smite", "looting", "multishot")
-                            )
-                            if (enchant != null) {
-                                val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
-                                stored.set(enchant.enchantment, enchant.level)
-                                item.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
-                            }
-                        }
+                        else -> storeRandomEnchant(
+                            rng,
+                            item,
+                            listOf("knockback", "punch", "smite", "looting", "multishot")
+                        )
                     }
                 }
             }
@@ -170,60 +140,45 @@ class Vault(val isOminous: Boolean) : Sequence {
 
                 Items.SHIELD -> item.damageValue = Mth.floor(1f - ItemFunctions.applyDamage(rng, 0.5f, 1f) * item.maxDamage)
 
-                Items.BOW -> {
-                    val levels = ItemFunctions.setCount(rng, 5, 15)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.BOW, EligibleEnchantments.BOW, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-                Items.CROSSBOW -> {
-                    val levels = ItemFunctions.setCount(rng, 5, 20)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.CROSSBOW, EligibleEnchantments.CROSSBOW, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-                Items.IRON_AXE -> {
-                    val levels = ItemFunctions.setCount(rng, 0, 10)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.IRON, EligibleEnchantments.AXE, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-                Items.IRON_CHESTPLATE -> {
-                    val levels = ItemFunctions.setCount(rng, 0, 10)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.IRON, EligibleEnchantments.CHESTPLATE, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-                Items.DIAMOND_CHESTPLATE -> {
-                    val levels = ItemFunctions.setCount(rng, 5, 15)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.DIAMOND, EligibleEnchantments.CHESTPLATE, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
-                Items.DIAMOND_AXE -> {
-                    val levels = ItemFunctions.setCount(rng, 5, 15)
-                    EnchantFunctions.enchantWithLevels(rng, Enchantability.DIAMOND, EligibleEnchantments.AXE, levels).forEach {
-                        item.enchant(it.enchantment, it.level)
-                    }
-                }
+                Items.BOW                -> enchantItem(rng, item, 5, 15, Enchantability.BOW, EligibleEnchantments.BOW)
+                Items.CROSSBOW           -> enchantItem(rng, item, 5, 20, Enchantability.CROSSBOW, EligibleEnchantments.CROSSBOW)
+                Items.IRON_AXE           -> enchantItem(rng, item, 0, 10, Enchantability.IRON, EligibleEnchantments.AXE)
+                Items.IRON_CHESTPLATE    -> enchantItem(rng, item, 0, 10, Enchantability.IRON, EligibleEnchantments.CHESTPLATE)
+                Items.DIAMOND_CHESTPLATE -> enchantItem(rng, item, 5, 15, Enchantability.DIAMOND, EligibleEnchantments.CHESTPLATE)
+                Items.DIAMOND_AXE        -> enchantItem(rng, item, 5, 15, Enchantability.DIAMOND, EligibleEnchantments.AXE)
                 Items.ENCHANTED_BOOK -> {
                     val options = when (item.get(ChiyokoComponents.VARIANT)) {
                         1    -> listOf("riptide", "loyalty", "channeling", "impaling", "mending")
                         else -> listOf("sharpness", "bane_of_arthropods", "efficiency", "fortune", "silk_touch", "feather_falling")
                     }
 
-                    val enchant = EnchantFunctions.enchantRandomly(rng, options)
-                    if (enchant != null) {
-                        val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
-                        stored.set(enchant.enchantment, enchant.level)
-                        item.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
-                    }
-
+                    storeRandomEnchant(rng, item, options)
                 }
             }
         }
         item.remove(ChiyokoComponents.VARIANT)
         return item
+    }
+
+    // rolls a level count between min and max, then enchants the item with that many levels
+    private fun enchantItem(rng: Xoroshiro128PlusPlus, item: ItemStack, min: Int, max: Int, enchantability: Int, eligible: Set<String>) {
+        val levels = ItemFunctions.setCount(rng, min, max)
+        EnchantFunctions.enchantWithLevels(rng, enchantability, eligible, levels).forEach {
+            item.enchant(it.enchantment, it.level)
+        }
+    }
+
+    private fun storeRandomEnchant(rng: Xoroshiro128PlusPlus, item: ItemStack, options: List<String>) {
+        val enchant = EnchantFunctions.enchantRandomly(rng, options)
+        if (enchant != null) {
+            storeEnchant(item, enchant.enchantment, enchant.level)
+        }
+    }
+
+    private fun storeEnchant(item: ItemStack, enchantment: Holder<Enchantment>, level: Int) {
+        val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
+        stored.set(enchantment, level)
+        item.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
     }
 
     private fun mergeStacks(input: List<ItemStack>): List<ItemStack> {

@@ -52,12 +52,11 @@ abstract class AbstractContainerMenuMixin {
 
             val (enchantability, eligibleEnchantments) = ItemEnchantData.of(itemStack.item)
 
-            @Suppress("UNCHECKED_CAST")
             val crackedSeed = XpSeedCracker.getOrCrackSeed(
                 partialSeed = Chiyoko.partialXpSeed!!,
                 menu = menu,
                 enchantability = enchantability,
-                eligibleEnchantments = eligibleEnchantments as Set<Nothing>,
+                eligibleEnchantments = eligibleEnchantments,
                 isBook = itemStack.item == Items.BOOK
             )
 
@@ -107,17 +106,13 @@ abstract class EnchantmentScreenMixin {
         val rand = LCG()
         rand.setSeed((xpSeed + i).toLong())
 
-        @Suppress("UNCHECKED_CAST")
-        val results = EnchantFunctions.enchantWithLevels(
+        val results = EnchantFunctions.enchantTableSlot(
             rng = rand,
             enchantability = enchantability,
-            eligibleIds = eligibleEnchantments as Set<Nothing>,
-            baseCost = menu.costs[i]
-        ).toMutableList()
-
-        if (results.size > 1 && itemStack.item == Items.BOOK) {
-            results.removeAt(rand.nextInt(results.size))
-        }
+            eligibleIds = eligibleEnchantments,
+            baseCost = menu.costs[i],
+            isBook = itemStack.item == Items.BOOK
+        )
 
         texts.add(CommonComponents.EMPTY)
 

@@ -3,34 +3,36 @@ package lgbt.faith.chiyoko
 import com.mojang.brigadier.context.CommandContext
 import com.mojang.serialization.Codec
 import lgbt.faith.chiyoko.functions.EligibleEnchantments
-import lgbt.faith.chiyoko.functions.EligibleEnchantments.LEGACY_REGISTRY_ORDER
 import lgbt.faith.chiyoko.functions.Enchantability
 import lgbt.faith.chiyoko.mixin.BiomeManagerAccessor
 import lgbt.faith.chiyoko.rand.LCG
+import lgbt.faith.chiyoko.sequences.Sequence
 import lgbt.faith.chiyoko.sequences.Vault
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource
 import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.core.component.DataComponentType
+import net.minecraft.core.registries.Registries
 import net.minecraft.network.chat.Component
 import net.minecraft.network.chat.ComponentUtils
+import net.minecraft.resources.ResourceKey
 import net.minecraft.world.item.Item
 import net.minecraft.world.item.ItemStack
+import net.minecraft.world.item.enchantment.Enchantment
+import net.minecraft.world.item.enchantment.EnchantmentHelper
+import net.minecraft.world.level.Level
 import net.minecraft.world.level.biome.BiomeManager
 
 data class ItemEnchantData(
     val enchantability: Int,
-    val eligibleEnchantments: Set<*>
+    val eligibleEnchantments: Set<String>
 ) {
     companion object {
         fun of(item: Item): ItemEnchantData {
             val enchantability = Enchantability.getEnchantability(item)
             val eligible = EligibleEnchantments.getEligibleEnchantments(item)
                 .intersect(EligibleEnchantments.ENCHANT_TABLE)
-                .sortedBy { id ->
-                    val idx = LEGACY_REGISTRY_ORDER.indexOf(id)
-                    if (idx == -1) 999 else idx
-                }
+                .sortedBy { EligibleEnchantments.legacyOrderIndex(it) }
                 .toSet()
 
             return ItemEnchantData(enchantability, eligible)
@@ -77,21 +79,39 @@ fun sendOverlay(text: String, color: ChatFormatting = ChatFormatting.WHITE) {
 
 fun handleVaultDesync(actual: ItemStack, isOminous: Boolean) {
 
-    val sequences = Chiyoko.sequences.map
-    val vault = if (isOminous) sequences["minecraft:chests/trial_chambers/reward_ominous"] as? Vault ?: return
-    else           sequences["minecraft:chests/trial_chambers/reward"] as? Vault ?: return
+    val vault = vaultSequence(isOminous) ?: return
 
     var advances = 0L
     val maxAdvances = 1000
     do {
-        val predicted = vault.peek(1)
+        val predicted = vault.peek(1, false)
         vault.advance(1)
         advances++
     } while((predicted.lastOrNull()?.item != actual.item ||
             predicted.lastOrNull()?.count != actual.count) && advances < maxAdvances)
 
     if (advances > 0) {
-        Chiyoko.configManager.updateSequence(Chiyoko.worldName, Chiyoko.seed, vault.getRngCopy(), vault.key, advances)
+        Chiyoko.configManager.updateSequence(vault, advances)
         sendOverlay("advanced $advances times to account for desync")
     }
+}
+
+fun vaultSequence(isOminous: Boolean): Vault? {
+    val sequences = Chiyoko.sequences.map
+    return if (isOminous) sequences["minecraft:chests/trial_chambers/reward_ominous"] as? Vault
+    else           sequences["minecraft:chests/trial_chambers/reward"] as? Vault
+}
+
+// returns the sequence only if its overlay is tracked
+inline fun <reified T : Sequence> trackedSequence(key: String): T? {
+    if (Chiyoko.configManager.config.getOverlay(key).tracked != true) return null
+    return Chiyoko.sequences.map[key] as? T
+}
+
+// null if the enchantment registry isn't available, 0 if the item doesn't have the enchant
+fun enchantmentLevel(level: Level, enchantment: ResourceKey<Enchantment>, stack: ItemStack): Int? {
+    val enchantRegistry = level.registryAccess().lookup(Registries.ENCHANTMENT).orElse(null) ?: return null
+    return enchantRegistry.get(enchantment)
+        .map { EnchantmentHelper.getItemEnchantmentLevel(it, stack) }
+        .orElse(0)
 }

@@ -4,6 +4,7 @@ import net.minecraft.ChatFormatting
 import net.minecraft.client.Minecraft
 import net.minecraft.client.gui.Font
 import net.minecraft.client.gui.GuiGraphicsExtractor
+import net.minecraft.client.gui.components.AbstractWidget
 import net.minecraft.client.gui.components.Button
 import net.minecraft.client.gui.components.ContainerObjectSelectionList
 import net.minecraft.client.gui.components.EditBox
@@ -44,19 +45,15 @@ class ChiyokoOverlayEditor : Screen(Component.literal("chiyoko overlay editor"))
     }
 
     override fun init() {
-        val keys = sequenceKeys
-        selectedKey = selectedKey?.takeIf { it in keys } ?: keys.firstOrNull()
-
-        buildTabs(keys)
-        buildList()
+        refreshUI()
 
         addRenderableWidget(Button.builder(Component.literal("done")) {
             configManager.save()
             /*? if >=26.2 {*/
-            /*this.minecraft.gui.setScreen(ChiyokoConfigScreen())
-            *//*?} else {*/
-            this.minecraft.setScreen(ChiyokoConfigScreen())
-            /*?}*/
+            this.minecraft.gui.setScreen(ChiyokoConfigScreen())
+            /*?} else {*/
+            /*this.minecraft.setScreen(ChiyokoConfigScreen())
+            *//*?}*/
         }.bounds(width / 2 - 100, height - 27, 200, 20).build())
     }
 
@@ -91,10 +88,10 @@ class ChiyokoOverlayEditor : Screen(Component.literal("chiyoko overlay editor"))
         if (showPlus) {
             val plusButton = Button.builder(Component.literal("+")) {
                 /*? if >=26.2 {*/
-                /*this.minecraft.gui.setScreen(ChiyokoAddTrackerScreen(this))
-                *//*?} else {*/
-                this.minecraft.setScreen(ChiyokoAddTrackerScreen(this))
-                /*?}*/
+                this.minecraft.gui.setScreen(ChiyokoAddTrackerScreen(this))
+                /*?} else {*/
+                /*this.minecraft.setScreen(ChiyokoAddTrackerScreen(this))
+                *//*?}*/
             }.bounds(x, y, tabSize, tabSize)
                 .tooltip(Tooltip.create(Component.literal("add tracker")))
                 .build()
@@ -160,10 +157,10 @@ class ChiyokoOverlayEditor : Screen(Component.literal("chiyoko overlay editor"))
     override fun onClose() {
         configManager.save()
         /*? if >=26.2 {*/
-        /*this.minecraft.gui.setScreen(null)
-        *//*?} else {*/
-        this.minecraft.setScreen(null)
-        /*?}*/
+        this.minecraft.gui.setScreen(null)
+        /*?} else {*/
+        /*this.minecraft.setScreen(null)
+        *//*?}*/
     }
 
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, a: Float) {
@@ -214,10 +211,10 @@ class ChiyokoAddTrackerScreen(private val parent: ChiyokoOverlayEditor) : Screen
                 configManager.config.updateOverlay(key) { tracked = true }
                 parent.selectedKey = key
                 /*? if >=26.2 {*/
-                /*this.minecraft.gui.setScreen(parent)
-                *//*?} else {*/
-                this.minecraft.setScreen(parent)
-                /*?}*/
+                this.minecraft.gui.setScreen(parent)
+                /*?} else {*/
+                /*this.minecraft.setScreen(parent)
+                *//*?}*/
                 parent.refreshUI()
             }.bounds(x, y, buttonSize, buttonSize)
                 .tooltip(Tooltip.create(Component.literal("track $readableName")))
@@ -229,19 +226,19 @@ class ChiyokoAddTrackerScreen(private val parent: ChiyokoOverlayEditor) : Screen
 
         addRenderableWidget(Button.builder(Component.literal("cancel")) {
             /*? if >=26.2 {*/
-            /*this.minecraft.gui.setScreen(parent)
-            *//*?} else {*/
-            this.minecraft.setScreen(parent)
-            /*?}*/
+            this.minecraft.gui.setScreen(parent)
+            /*?} else {*/
+            /*this.minecraft.setScreen(parent)
+            *//*?}*/
         }.bounds(width / 2 - 50, height - 35, 100, 20).build())
     }
 
     override fun onClose() {
         /*? if >=26.2 {*/
-        /*this.minecraft.gui.setScreen(parent)
-        *//*?} else {*/
-        this.minecraft.setScreen(parent)
-        /*?}*/
+        this.minecraft.gui.setScreen(parent)
+        /*?} else {*/
+        /*this.minecraft.setScreen(parent)
+        *//*?}*/
     }
 
     override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, a: Float) {
@@ -261,24 +258,43 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
         return super.addEntry(entry)
     }
 
-    class UntrackEntry(val key: String, val configManager: ChiyokoConfigManager, val editor: ChiyokoOverlayEditor) : Entry() {
+    // label on the left, widget on the right
+    abstract class LabeledEntry(private val label: String) : Entry() {
         private var _focused = false
+        protected abstract val widget: AbstractWidget
+
+        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
+            val mc = Minecraft.getInstance()
+            graphics.text(mc.font, label, contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
+            widget.setPosition(contentRight - 150, contentY)
+            widget.extractRenderState(graphics, mouseX, mouseY, a)
+        }
+
+        override fun children(): List<GuiEventListener> = listOf(widget)
+        override fun narratables(): List<NarratableEntry> = listOf(widget)
+
+        override fun setFocused(focused: Boolean) {_focused = focused}
+        override fun isFocused(): Boolean {return _focused}
+
+        companion object {
+            fun toggleLabel(value: Boolean, trueText: String = "true", falseText: String = "false"): Component {
+                return if (value) {
+                    Component.literal(trueText).withStyle(ChatFormatting.GREEN)
+                } else {
+                    Component.literal(falseText).withStyle(ChatFormatting.RED)
+                }
+            }
+        }
+    }
+
+    class UntrackEntry(val key: String, val configManager: ChiyokoConfigManager, val editor: ChiyokoOverlayEditor) : LabeledEntry("tracking") {
         private val button = Button.builder(Component.literal("untrack").withStyle(ChatFormatting.RED)) {
             configManager.config.updateOverlay(key) { tracked = false }
             editor.selectedKey = null
             editor.refreshUI()
         }.bounds(0, 0, 150, 20).build()
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "tracking", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            button.setPosition(contentRight - 150, contentY)
-            button.extractRenderState(graphics, mouseX, mouseY, a)
-        }
-        override fun children(): List<GuiEventListener> = listOf(button)
-        override fun narratables(): List<NarratableEntry> = listOf(button)
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
+        override val widget get() = button
     }
 
     class InfoEntry(val text: String) : Entry() {
@@ -293,39 +309,19 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
         override fun isFocused(): Boolean = false
     }
 
-    class VisibleEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : Entry() {
-        private var _focused = false
-
+    class VisibleEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("visibility") {
         private val button = Button.builder(visibleLabel()) {
             overlay.visible = !overlay.visible
             it.message = visibleLabel()
             configManager.config.updateOverlay(key) { visible = overlay.visible }
         }.bounds(0, 0, 150, 20).build()
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "visibility", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            button.setPosition(contentRight - 150, contentY)
-            button.extractRenderState(graphics, mouseX, mouseY, a)
-        }
-        private fun visibleLabel(): Component {
-            return if (overlay.visible) {
-                Component.literal("shown").withStyle(ChatFormatting.GREEN)
-            } else {
-                Component.literal("hidden").withStyle(ChatFormatting.RED)
-            }
-        }
+        override val widget get() = button
 
-        override fun children(): List<GuiEventListener> = listOf(button)
-        override fun narratables(): List<NarratableEntry> = listOf(button)
-
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
+        private fun visibleLabel(): Component = toggleLabel(overlay.visible, "shown", "hidden")
     }
 
-    class RotationEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : Entry() {
-        private var _focused = false
-
+    class RotationEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("rotation") {
         private val button = Button.builder(rotationLabel()) {
             overlay.rotation = when (overlay.rotation) {
                 OverlayRotation.HORIZONTAL -> OverlayRotation.VERTICAL
@@ -335,59 +331,29 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
             configManager.config.updateOverlay(key) { rotation = overlay.rotation }
         }.bounds(0, 0, 150, 20).build()
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "rotation", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            button.setPosition(contentRight - 150, contentY)
-            button.extractRenderState(graphics, mouseX, mouseY, a)
-        }
+        override val widget get() = button
+
         private fun rotationLabel(): MutableComponent {
             return when (overlay.rotation) {
                 OverlayRotation.VERTICAL -> Component.literal("vertical ↑")
                 OverlayRotation.HORIZONTAL -> Component.literal("horizontal →")
             }
         }
-
-        override fun children(): List<GuiEventListener> = listOf(button)
-        override fun narratables(): List<NarratableEntry> = listOf(button)
-
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
     }
 
-    class ReversedEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : Entry() {
-        private var _focused = false
-
+    class ReversedEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("reversed") {
         private val button = Button.builder(reversedLabel()) {
             overlay.reversed = !overlay.reversed
             it.message = reversedLabel()
             configManager.config.updateOverlay(key) { reversed = overlay.reversed }
         }.bounds(0, 0, 150, 20).build()
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "reversed", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            button.setPosition(contentRight - 150, contentY)
-            button.extractRenderState(graphics, mouseX, mouseY, a)
-        }
-        private fun reversedLabel(): Component {
-            return if (overlay.reversed) {
-                Component.literal("true").withStyle(ChatFormatting.GREEN)
-            } else {
-                Component.literal("false").withStyle(ChatFormatting.RED)
-            }
-        }
+        override val widget get() = button
 
-        override fun children(): List<GuiEventListener> = listOf(button)
-        override fun narratables(): List<NarratableEntry> = listOf(button)
-
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
+        private fun reversedLabel(): Component = toggleLabel(overlay.reversed)
     }
 
-    class RollTypeEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : Entry() {
-        private var _focused = false
-
+    class RollTypeEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("roll type") {
         private val button = Button.builder(rollTypeLabel()) {
             overlay.rollType = when (overlay.rollType ?: RollType.KillsUntilItem) {
                 RollType.NextDrop -> RollType.KillsUntilItem
@@ -397,19 +363,9 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
             configManager.config.updateOverlay(key) { rollType = overlay.rollType }
         }.bounds(0, 0, 150, 20).build()
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "roll type", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            button.setPosition(contentRight - 150, contentY)
-            button.extractRenderState(graphics, mouseX, mouseY, a)
-        }
+        override val widget get() = button
+
         private fun rollTypeLabel() = Component.literal((overlay.rollType ?: RollType.KillsUntilItem).name.replace(Regex("([a-z])([A-Z])"), "$1 $2").lowercase())
-
-        override fun children(): List<GuiEventListener> = listOf(button)
-        override fun narratables(): List<NarratableEntry> = listOf(button)
-
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
     }
 
     class AdvancesEntry(
@@ -417,8 +373,7 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
         private val overlay: OverlayConfig,
         private val configManager: ChiyokoConfigManager,
         font: Font
-    ) : Entry() {
-        private var _focused = false
+    ) : LabeledEntry("advances") {
         private val editBox = EditBox(font, 0, 0, 150, 20, Component.literal("advances")).also {
             it.value = overlay.advances.toString()
             it.setResponder { s ->
@@ -431,47 +386,19 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
                 configManager.config.updateOverlay(key) { advances = v }
             }
         }
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "advances", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            editBox.setPosition(contentRight - 150, contentY)
-            editBox.extractRenderState(graphics, mouseX, mouseY, a)
-        }
 
-        override fun children(): List<GuiEventListener> = listOf(editBox)
-        override fun narratables(): List<NarratableEntry> = listOf(editBox)
-
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
+        override val widget get() = editBox
     }
 
-    class SplitEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : Entry() {
-        private var _focused = false
-
+    class SplitEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("split") {
         private val button = Button.builder(splitLabel()) {
             overlay.split = !overlay.split
             it.message = splitLabel()
             configManager.config.updateOverlay(key) { split = overlay.split }
         }.bounds(0, 0, 150, 20).build()
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, "split", contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            button.setPosition(contentRight - 150, contentY)
-            button.extractRenderState(graphics, mouseX, mouseY, a)
-        }
-        private fun splitLabel(): Component {
-            return if (overlay.split) {
-                Component.literal("true").withStyle(ChatFormatting.GREEN)
-            } else {
-                Component.literal("false").withStyle(ChatFormatting.RED)
-            }
-        }
+        override val widget get() = button
 
-        override fun children(): List<GuiEventListener> = listOf(button)
-        override fun narratables(): List<NarratableEntry> = listOf(button)
-
-        override fun setFocused(focused: Boolean) {_focused = focused}
-        override fun isFocused(): Boolean {return _focused}
+        private fun splitLabel(): Component = toggleLabel(overlay.split)
     }
 }

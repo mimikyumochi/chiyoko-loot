@@ -32,10 +32,10 @@ class ChiyokoLayoutEditor : Screen(Component.literal("chiyoko layout editor")) {
         doneButton = Button.builder(Component.literal("Done")) {
             configManager.save()
             /*? if >=26.2 {*/
-            /*this.minecraft.gui.setScreen(ChiyokoConfigScreen())
-            *//*?} else {*/
-            this.minecraft.setScreen(ChiyokoConfigScreen())
-            /*?}*/
+            this.minecraft.gui.setScreen(ChiyokoConfigScreen())
+            /*?} else {*/
+            /*this.minecraft.setScreen(ChiyokoConfigScreen())
+            *//*?}*/
         }.bounds(width / 2 - 100, height - 27, 200, 20).build()
         addRenderableWidget(doneButton)
         buttonAtBottom = true
@@ -53,8 +53,8 @@ class ChiyokoLayoutEditor : Screen(Component.literal("chiyoko layout editor")) {
         for ((key, pos) in configManager.config.hudSlots) {
             if (mouseGridX == pos.gridX && mouseGridY == pos.gridY) {
                 dragging = key
-                dragOffsetX = pixelToGrid(event.x) - pos.gridX
-                dragOffsetY = pixelToGrid(event.y) - pos.gridY
+                dragOffsetX = mouseGridX - pos.gridX
+                dragOffsetY = mouseGridY - pos.gridY
                 return true
             }
         }

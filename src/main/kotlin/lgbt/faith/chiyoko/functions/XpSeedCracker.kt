@@ -70,20 +70,17 @@ object XpSeedCracker {
                 val rand = LCG()
                 rand.setSeed((candidateSeed + i).toLong())
 
-                val results = EnchantFunctions.enchantWithLevels(
+                val results = EnchantFunctions.enchantTableSlot(
                     rng = rand,
                     enchantability = enchantability,
                     eligibleIds = eligibleEnchantments,
-                    baseCost = menu.costs[i]
-                ).toMutableList()
+                    baseCost = menu.costs[i],
+                    isBook = isBook
+                )
 
                 if (results.isEmpty()) {
                     isMatch = false
                     break
-                }
-
-                if (results.size > 1 && isBook) {
-                    results.removeAt(rand.nextInt(results.size))
                 }
 
                 val clueIndex = rand.nextInt(results.size)

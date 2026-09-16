@@ -35,11 +35,8 @@ object EnchantPredictor {
                 val costRng = LCG()
                 costRng.setSeed(xpSeedLong)
 
-                val costs = IntArray(3)
-                for (i in 0..2) {
-                    var c = EnchantFunctions.getSimulatedCost(costRng, i, bookshelves, enchantability)
-                    if (c < i + 1) c = 0
-                    costs[i] = c
+                val costs = IntArray(3) { i ->
+                    EnchantFunctions.getSimulatedCost(costRng, i, bookshelves, enchantability)
                 }
 
                 for (slot in 2 downTo 0) {
@@ -48,13 +45,9 @@ object EnchantPredictor {
 
                     val rng = LCG()
                     rng.setSeed((xpSeed + slot).toLong())
-                    @Suppress("UNCHECKED_CAST")
-                    val predicted = EnchantFunctions.enchantWithLevels(
-                        rng, enchantability, eligible as Set<Nothing>, cost
-                    ).toMutableList()
-                    if (predicted.size > 1 && item == Items.BOOK) {
-                        predicted.removeAt(rng.nextInt(predicted.size))
-                    }
+                    val predicted = EnchantFunctions.enchantTableSlot(
+                        rng, enchantability, eligible, cost, item == Items.BOOK
+                    )
 
                     val matched = predicted.size >= targets.size && targets.all { target ->
                         predicted.any {

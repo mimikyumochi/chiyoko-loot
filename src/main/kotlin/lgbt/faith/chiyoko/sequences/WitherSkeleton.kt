@@ -18,9 +18,14 @@ class WitherSkeleton : Sequence {
         }
     }
 
+    private fun skullChance(looting: Int) = if (looting == 0) 0.025f else 0.035f + (looting - 1) * 0.01f
+
+    private fun lootingBonus(rng: Xoroshiro128PlusPlus, lootingLevel: Int) =
+        if (lootingLevel > 0) (lootingLevel * rng.nextFloat() * 1.0f).roundToInt() else 0
+
     fun killsUntilDrop(rng: Xoroshiro128PlusPlus, looting: Int): List<ItemStack> {
 
-        val chance = if (looting == 0) 0.025f else 0.035f + (looting - 1) * 0.01f
+        val chance = skullChance(looting)
         var kills = 0
         while (true) {
             kills++
@@ -35,17 +40,17 @@ class WitherSkeleton : Sequence {
         val drops = mutableListOf<ItemStack>()
 
         val coalBase = rng.nextInt(3)-1
-        val coalBonus = if (lootingLevel>0) (lootingLevel*rng.nextFloat() * 1.0f).roundToInt() else 0
+        val coalBonus = lootingBonus(rng, lootingLevel)
         val totalCoal = maxOf(0, coalBase) + coalBonus
         if (totalCoal > 0) drops.add(ItemStack(Items.COAL, totalCoal))
 
         val boneBase = rng.nextInt(3)
-        val boneBonus = if (lootingLevel > 0) (lootingLevel * rng.nextFloat() * 1.0f).roundToInt() else 0
+        val boneBonus = lootingBonus(rng, lootingLevel)
         val totalBones = boneBase + boneBonus
         if (totalBones > 0) drops.add(ItemStack(Items.BONE, totalBones))
 
         if (playerKilled) {
-            val chance = if (lootingLevel == 0) 0.025f else 0.035f + (lootingLevel - 1) * 0.01f
+            val chance = skullChance(lootingLevel)
             if (rng.nextFloat() < chance) drops.add(ItemStack(Items.WITHER_SKELETON_SKULL, 1))
         }
 

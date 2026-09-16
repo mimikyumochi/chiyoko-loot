@@ -2,10 +2,9 @@ package lgbt.faith.chiyoko.mixin
 
 import lgbt.faith.chiyoko.DropEventState
 import lgbt.faith.chiyoko.PendingGravelBreak
+import lgbt.faith.chiyoko.enchantmentLevel
 import net.minecraft.client.Minecraft
 import net.minecraft.core.BlockPos
-import net.minecraft.core.registries.Registries
-import net.minecraft.world.item.enchantment.EnchantmentHelper
 import net.minecraft.world.item.enchantment.Enchantments
 import net.minecraft.world.level.Level
 import net.minecraft.world.level.block.Blocks
@@ -32,18 +31,13 @@ class LevelMixin {
             val player = mc.player ?: return
             if (Vec3.atCenterOf(pos).distanceTo(player.position()) > 12.0) return
 
-            val enchantRegistry = level.registryAccess().lookup(Registries.ENCHANTMENT).orElse(null) ?: return
             val tool = player.mainHandItem
 
-            val silkTouch = enchantRegistry.get(Enchantments.SILK_TOUCH)
-                .map { EnchantmentHelper.getItemEnchantmentLevel(it, tool) }
-                .orElse(0) ?: return
+            val silkTouch = enchantmentLevel(level, Enchantments.SILK_TOUCH, tool) ?: return
 
             if (silkTouch > 0) return
 
-            val fortune = enchantRegistry.get(Enchantments.FORTUNE)
-                .map { EnchantmentHelper.getItemEnchantmentLevel(it, tool) }
-                .orElse(0) ?: return
+            val fortune = enchantmentLevel(level, Enchantments.FORTUNE, tool) ?: return
 
             DropEventState.pendingGravels.add(PendingGravelBreak(Vec3.atCenterOf(pos), fortune))
         }

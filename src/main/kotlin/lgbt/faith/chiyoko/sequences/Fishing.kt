@@ -34,8 +34,7 @@ class Fishing : Sequence {
         val table = getLootTable(rng, luck, isOpenWater) ?: return null
         val pool = getPool(table, isJungle)
 
-        val roll = rng.nextInt(pool.last().end)
-        val stack = pool.first { roll in it.start until it.end }.item.copy()
+        val stack = Sequence.rollEntry(rng, pool).copy()
 
         applyFunctions(rng, stack, table)
         return stack
@@ -46,13 +45,13 @@ class Fishing : Sequence {
         if (table == LootTable.JUNK) {
             when (stack.item) {
                 Items.LEATHER_BOOTS,
-                Items.FISHING_ROD -> stack.damageValue = Mth.floor((1f - ItemFunctions.applyDamage(rng, 0f, 0.9f)) * stack.maxDamage)
+                Items.FISHING_ROD -> damageStack(rng, stack, 0.9f)
             }
         }
         else if (table == LootTable.TREASURE) {
             when (stack.item) {
                 Items.BOW -> {
-                    stack.damageValue = Mth.floor((1f - ItemFunctions.applyDamage(rng, 0f, 0.25f)) * stack.maxDamage)
+                    damageStack(rng, stack, 0.25f)
                     val enchants = EnchantFunctions.enchantWithLevels(rng, Enchantability.BOW, EligibleEnchantments.BOW, 30)
                     enchants.forEach { stack.enchant(it.enchantment, it.level) }
                 }
@@ -65,12 +64,16 @@ class Fishing : Sequence {
                 }
 
                 Items.FISHING_ROD -> {
-                    stack.damageValue = Mth.floor((1f - ItemFunctions.applyDamage(rng, 0f, 0.25f)) * stack.maxDamage)
+                    damageStack(rng, stack, 0.25f)
                     val enchants = EnchantFunctions.enchantWithLevels(rng, Enchantability.FISHING_ROD, EligibleEnchantments.FISHING_ROD, 30)
                     enchants.forEach { stack.enchant(it.enchantment, it.level) }
                 }
             }
         }
+    }
+
+    private fun damageStack(rng: Xoroshiro128PlusPlus, stack: ItemStack, max: Float) {
+        stack.damageValue = Mth.floor((1f - ItemFunctions.applyDamage(rng, 0f, max)) * stack.maxDamage)
     }
 
     companion object {

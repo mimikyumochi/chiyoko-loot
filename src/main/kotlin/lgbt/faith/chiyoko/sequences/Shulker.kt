@@ -29,8 +29,10 @@ class Shulker : Sequence {
         }
     }
 
+    private fun shellChance(looting: Int) = if (looting == 0) 0.5f else 0.5625f + (looting - 1) * 0.0625f
+
     fun killsUntilShell(rng: Xoroshiro128PlusPlus, looting: Int): List<ItemStack> {
-        val chance = if (looting == 0) 0.5f else 0.5625f + (looting - 1) * 0.0625f
+        val chance = shellChance(looting)
 
         var kills = 0
         while (true) {
@@ -45,7 +47,7 @@ class Shulker : Sequence {
     fun nextDrops(rng: Xoroshiro128PlusPlus, looting: Int): MutableList<ItemStack> {
         val drops = mutableListOf<ItemStack>()
 
-        val chance = if (looting == 0) 0.5f else 0.5625f + (looting - 1) * 0.0625f
+        val chance = shellChance(looting)
 
         if (rng.nextFloat() < chance) {
             drops += ItemStack(Items.SHULKER_SHELL)
