@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "lgbt.faith.chiyoko.mixin",
+  "package": "lgbt.faith.chiyoko.loot.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
     "GuiMixin",
@@ -13,9 +13,7 @@
     "MultiPlayerGameModeMixin",
     "MinecraftMixin",
     "LevelMixin",
-    "EnchantmentScreenMixin",
-    "AbstractContainerScreenAccessor",
-    "AbstractContainerMenuMixin"
+    "LocalPlayerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

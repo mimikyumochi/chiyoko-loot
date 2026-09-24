@@ -1,0 +1,57 @@
+{
+  "chiyoko.pause_button": "chiyoko",
+
+  "chiyoko.config.title": "chiyoko config",
+  "chiyoko.config.seed": "world seed",
+  "chiyoko.config.save": "save",
+  "chiyoko.config.edit_layout": "edit layout",
+  "chiyoko.config.edit_overlays": "edit overlays",
+  "chiyoko.config.pause_button": "pause button: %s",
+  "chiyoko.config.close": "close",
+
+  "chiyoko.layout.title": "chiyoko layout editor",
+  "chiyoko.layout.done": "done",
+
+  "chiyoko.overlay.title": "chiyoko overlay editor",
+  "chiyoko.overlay.done": "done",
+  "chiyoko.overlay.add_tracker": "add tracker",
+  "chiyoko.overlay.no_trackers": "no trackers active. click '+' above to add one!",
+  "chiyoko.overlay.tracking": "tracking",
+  "chiyoko.overlay.untrack": "untrack",
+  "chiyoko.overlay.visibility": "visibility",
+  "chiyoko.overlay.rotation": "rotation",
+  "chiyoko.overlay.rotation.vertical": "vertical ↑",
+  "chiyoko.overlay.rotation.horizontal": "horizontal →",
+  "chiyoko.overlay.reversed": "reversed",
+  "chiyoko.overlay.roll_type": "roll type",
+  "chiyoko.overlay.roll_type.next_drop": "next drop",
+  "chiyoko.overlay.roll_type.kills_until_item": "kills until item",
+  "chiyoko.overlay.advances": "advances",
+  "chiyoko.overlay.split": "split",
+
+  "chiyoko.add_tracker.title": "add tracker selection",
+  "chiyoko.add_tracker.track": "track %s",
+  "chiyoko.add_tracker.cancel": "cancel",
+
+  "chiyoko.toggle.true": "true",
+  "chiyoko.toggle.false": "false",
+  "chiyoko.toggle.shown": "shown",
+  "chiyoko.toggle.hidden": "hidden",
+
+  "chiyoko.sequence.chests.trial_chambers.reward_ominous": "ominous trial vault",
+  "chiyoko.sequence.chests.trial_chambers.reward": "trial vault",
+  "chiyoko.sequence.gameplay.piglin_bartering": "piglin bartering",
+  "chiyoko.sequence.gameplay.fishing": "fishing",
+  "chiyoko.sequence.entities.wither_skeleton": "wither skeleton",
+  "chiyoko.sequence.blocks.gravel": "gravel",
+  "chiyoko.sequence.entities.shulker": "shulker",
+
+  "chiyoko.desync.advanced": "advanced %s times to account for desync",
+  "chiyoko.desync.advanced_matched": "advanced %s times to account for desync (matched %s items)",
+
+  "chiyoko.command.validateseed.correct": "%s is the correct world seed",
+  "chiyoko.command.validateseed.incorrect": "%s is not the correct world seed",
+
+  "chiyoko.toast.config_reset.title": "chiyoko config reset",
+  "chiyoko.toast.config_reset.description": "bug that affects advancements was found, world config purged."
+}

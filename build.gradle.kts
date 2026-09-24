@@ -32,6 +32,13 @@ fabricApi {
     }
 }
 
+repositories {
+    maven("https://maven.terraformersmc.com/releases") {
+        name = "TerraformersMC"
+        content { includeGroup("com.terraformersmc") }
+    }
+}
+
 dependencies {
     implementation("com.google.guava:guava:33.0.0-jre")
 
@@ -41,6 +48,9 @@ dependencies {
 
     implementation("net.fabricmc.fabric-api:fabric-api:${resolveProperty("fabric_api_version", "0.154.2+26.2")}")
     implementation("net.fabricmc:fabric-language-kotlin:${resolveProperty("fabric_kotlin_version", "1.13.12+kotlin.2.4.0")}")
+
+    // optional - only the api is compiled against, the integration class is never loaded without mod menu
+    compileOnly("com.terraformersmc:modmenu:${resolveProperty("modmenu_version", "20.0.3")}") { isTransitive = false }
 }
 
 tasks.processResources {

@@ -11,7 +11,10 @@
   "environment": "client",
   "entrypoints": {
     "client": [
-      "lgbt.faith.chiyoko.Chiyoko"
+      "lgbt.faith.chiyoko.loot.Chiyoko"
+    ],
+    "modmenu": [
+      "lgbt.faith.chiyoko.loot.ChiyokoModMenu"
     ]
   },
   "mixins": [
@@ -22,5 +25,8 @@
     "fabric-language-kotlin": ">=${kotlin_loader_version}",
     "fabric-api": "*",
     "minecraft": "~${minecraft_version}"
+  },
+  "suggests": {
+    "modmenu": "*"
   }
 }
