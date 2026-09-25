@@ -1,9 +1,9 @@
-# Chiyoko
+# Chiyoko: Loot Visualiser
 
 Chiyoko predicts the outcome of certain loot tables before they happen by simulating the RNG exactly as minecraft does.
 
 - supports minecraft **26.1**, **26.2** and **26.3** (fabric)
-- 1.21.11 support is currently being worked on, this might take a while.
+- **1.21.11** support is currently being worked on, this might take a while.
 - enchantment prediction has moved to [Chiyoko: Player RNG](https://github.com/mimikyumochi/chiyoko-player)
 
 ---
