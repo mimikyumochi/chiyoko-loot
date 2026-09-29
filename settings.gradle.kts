@@ -7,13 +7,4 @@ pluginManagement {
     }
 }
 
-plugins {
-    id("dev.kikugie.stonecutter") version "0.9.6"
-}
-
-stonecutter {
-    create(rootProject) {
-        versions("26.1", "26.2", "26.3")
-        vcsVersion = "26.2"
-    }
-}
+rootProject.name = "chiyoko"

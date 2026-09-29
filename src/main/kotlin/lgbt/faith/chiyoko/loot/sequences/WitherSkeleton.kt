@@ -2,8 +2,8 @@ package lgbt.faith.chiyoko.loot.sequences
 
 import lgbt.faith.chiyoko.loot.config.RollType
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
 import kotlin.math.roundToInt
 
 class WitherSkeleton : Sequence {

@@ -6,13 +6,12 @@ import lgbt.faith.chiyoko.loot.rand.RandomSupport
 import lgbt.faith.chiyoko.loot.sequences.*
 import net.fabricmc.api.ClientModInitializer
 import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback
-import net.fabricmc.fabric.api.client.command.v2.ClientCommands
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.components.toasts.SystemToast
-import net.minecraft.network.chat.Component
-import net.minecraft.world.level.storage.LevelResource
+import net.minecraft.client.MinecraftClient
+import net.minecraft.client.toast.SystemToast
+import net.minecraft.text.Text
+import net.minecraft.util.WorldSavePath
 import kotlin.io.path.name
 
 
@@ -43,7 +42,7 @@ private fun createSequence(key: String): Sequence? {
 
 class Chiyoko : ClientModInitializer {
     companion object {
-        val mc = Minecraft.getInstance()
+        val mc = MinecraftClient.getInstance()
 
         var loaded = false
         var seed: Long = 0
@@ -91,11 +90,11 @@ class Chiyoko : ClientModInitializer {
             var s: Long
             var w: String
 
-            if (mc.currentServer == null) {
-                s = mc.singleplayerServer!!.worldGenSettings.options().seed()
-                w = mc.singleplayerServer!!.getWorldPath(LevelResource.ROOT).parent.name
+            if (mc.currentServerEntry == null) {
+                s = mc.server!!.saveProperties.generatorOptions.seed
+                w = mc.server!!.getSavePath(WorldSavePath.ROOT).parent.name
             } else {
-                w = mc.currentServer!!.ip
+                w = mc.currentServerEntry!!.address
                 s = configManager.config.worlds[w]?.worldSeed ?: 0
             }
 
@@ -123,14 +122,10 @@ class Chiyoko : ClientModInitializer {
 
             if (configManager.wasReset) {
                 SystemToast.add(
-                    /*? if >=26.2 {*/
-                    /*client.gui.toastManager()
-                    *//*?} else {*/
-                    client.toastManager
-                    /*?}*/,
-                    SystemToast.SystemToastId.PERIODIC_NOTIFICATION,
-                    Component.translatable("chiyoko.toast.config_reset.title"),
-                    Component.translatable("chiyoko.toast.config_reset.description")
+                    client.toastManager,
+                    SystemToast.Type.PERIODIC_NOTIFICATION,
+                    Text.translatable("chiyoko.toast.config_reset.title"),
+                    Text.translatable("chiyoko.toast.config_reset.description")
                 )
                 configManager.wasReset = false
             }

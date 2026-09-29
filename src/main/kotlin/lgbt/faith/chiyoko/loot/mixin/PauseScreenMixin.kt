@@ -5,14 +5,14 @@ import lgbt.faith.chiyoko.loot.gui.ChiyokoConfigScreen
 import lgbt.faith.chiyoko.loot.gui.ChiyokoRenderer
 import lgbt.faith.chiyoko.loot.modMenuLoaded
 import lgbt.faith.chiyoko.loot.openScreen
-import net.minecraft.client.gui.GuiGraphicsExtractor
-import net.minecraft.client.gui.components.Button.builder
-import net.minecraft.client.gui.components.Renderable
-import net.minecraft.client.gui.components.events.GuiEventListener
-import net.minecraft.client.gui.narration.NarratableEntry
-import net.minecraft.client.gui.screens.PauseScreen
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.network.chat.Component
+import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.widget.ButtonWidget.builder
+import net.minecraft.client.gui.Drawable
+import net.minecraft.client.gui.Element
+import net.minecraft.client.gui.Selectable
+import net.minecraft.client.gui.screen.GameMenuScreen
+import net.minecraft.client.gui.screen.Screen
+import net.minecraft.text.Text
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.gen.Invoker
 import org.spongepowered.asm.mixin.injection.At
@@ -21,20 +21,20 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo
 
 @Mixin(Screen::class)
 interface ScreenAccessor {
-    @Invoker("addRenderableWidget")
+    @Invoker("addDrawableChild")
     fun <T> callAddRenderableWidget(widget: T): T
-            where T : GuiEventListener, T : Renderable, T : NarratableEntry
+            where T : Element, T : Drawable, T : Selectable
 }
 
-@Mixin(PauseScreen::class)
+@Mixin(GameMenuScreen::class)
 abstract class PauseScreenMixin {
 
     @Inject(
-        method = ["extractRenderState"],
+        method = ["render"],
         at = [At("HEAD")]
     )
     private fun dropseed(
-        graphics: GuiGraphicsExtractor,
+        graphics: DrawContext,
         mouseX: Int,
         mouseY: Int,
         a: Float,
@@ -46,8 +46,8 @@ abstract class PauseScreenMixin {
     // added once per init rather than every frame, which piled up a new button each render
     @Inject(method = ["init"], at = [At("TAIL")])
     private fun addConfigButton(ci: CallbackInfo) {
-        val screen = this as PauseScreen
-        if (!screen.showsPauseMenu()) return
+        val screen = this as GameMenuScreen
+        if (!screen.shouldShowMenu()) return
         // with mod menu the config is reachable from the mods list, so the button can be hidden
         if (modMenuLoaded && !Chiyoko.configManager.config.showPauseButton) return
 
@@ -56,9 +56,9 @@ abstract class PauseScreenMixin {
         val x = screen.width - width - 5
         val y = screen.height - height - 5
 
-        val button = builder(Component.translatable("chiyoko.pause_button")) {
+        val button = builder(Text.translatable("chiyoko.pause_button")) {
             openScreen(ChiyokoConfigScreen(screen))
-        }.bounds(x, y, width, height).build()
+        }.dimensions(x, y, width, height).build()
 
         (this as ScreenAccessor).callAddRenderableWidget(button)
     }

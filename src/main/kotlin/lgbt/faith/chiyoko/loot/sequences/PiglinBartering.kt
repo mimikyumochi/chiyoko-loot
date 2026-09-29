@@ -3,14 +3,14 @@ package lgbt.faith.chiyoko.loot.sequences
 import lgbt.faith.chiyoko.loot.functions.EnchantFunctions
 import lgbt.faith.chiyoko.loot.functions.ItemFunctions
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
-import net.minecraft.client.Minecraft
-import net.minecraft.core.component.DataComponents
-import net.minecraft.core.registries.Registries
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
-import net.minecraft.world.item.alchemy.PotionContents
-import net.minecraft.world.item.alchemy.Potions
-import net.minecraft.world.item.enchantment.Enchantments
+import net.minecraft.client.MinecraftClient
+import net.minecraft.component.DataComponentTypes
+import net.minecraft.registry.RegistryKeys
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.component.type.PotionContentsComponent
+import net.minecraft.potion.Potions
+import net.minecraft.enchantment.Enchantments
 
 
 class PiglinBartering : Sequence {
@@ -39,8 +39,8 @@ class PiglinBartering : Sequence {
             when (item) {
                 Items.ENCHANTED_BOOK, Items.IRON_BOOTS -> {
                     val registryAccess =
-                        Minecraft.getInstance().level?.registryAccess()?.lookupOrThrow(Registries.ENCHANTMENT)
-                    stack.enchant(registryAccess!!.getOrThrow(Enchantments.SOUL_SPEED), info)
+                        MinecraftClient.getInstance().world?.registryManager?.getOrThrow(RegistryKeys.ENCHANTMENT)
+                    stack.addEnchantment(registryAccess!!.getOrThrow(Enchantments.SOUL_SPEED), info)
                 }
 
                 else -> {
@@ -77,9 +77,9 @@ class PiglinBartering : Sequence {
     val lootTable = listOf(
         Sequence.Entry(ItemStack(Items.ENCHANTED_BOOK), 0, 5),
         Sequence.Entry(ItemStack(Items.IRON_BOOTS), 5, 13),
-        Sequence.Entry(ItemStack(Items.POTION).apply { set(DataComponents.POTION_CONTENTS, PotionContents(Potions.FIRE_RESISTANCE)) }, 13, 21),
-        Sequence.Entry(ItemStack(Items.SPLASH_POTION).apply { set(DataComponents.POTION_CONTENTS, PotionContents(Potions.FIRE_RESISTANCE)) }, 21, 29),
-        Sequence.Entry(ItemStack(Items.POTION).apply { set(DataComponents.POTION_CONTENTS, PotionContents(Potions.WATER)) }, 29, 39),
+        Sequence.Entry(ItemStack(Items.POTION).apply { set(DataComponentTypes.POTION_CONTENTS, PotionContentsComponent(Potions.FIRE_RESISTANCE)) }, 13, 21),
+        Sequence.Entry(ItemStack(Items.SPLASH_POTION).apply { set(DataComponentTypes.POTION_CONTENTS, PotionContentsComponent(Potions.FIRE_RESISTANCE)) }, 21, 29),
+        Sequence.Entry(ItemStack(Items.POTION).apply { set(DataComponentTypes.POTION_CONTENTS, PotionContentsComponent(Potions.WATER)) }, 29, 39),
         Sequence.Entry(ItemStack(Items.IRON_NUGGET), 39, 49),
         Sequence.Entry(ItemStack(Items.ENDER_PEARL), 49, 59),
         Sequence.Entry(ItemStack(Items.DRIED_GHAST), 59, 69),

@@ -5,13 +5,13 @@ import lgbt.faith.chiyoko.loot.functions.EnchantFunctions
 import lgbt.faith.chiyoko.loot.functions.Enchantability
 import lgbt.faith.chiyoko.loot.functions.ItemFunctions
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
-import net.minecraft.core.component.DataComponents
-import net.minecraft.util.Mth
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
-import net.minecraft.world.item.alchemy.PotionContents
-import net.minecraft.world.item.alchemy.Potions
-import net.minecraft.world.item.enchantment.ItemEnchantments
+import net.minecraft.component.DataComponentTypes
+import net.minecraft.util.math.MathHelper
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.component.type.PotionContentsComponent
+import net.minecraft.potion.Potions
+import net.minecraft.component.type.ItemEnchantmentsComponent
 
 class Fishing : Sequence {
     enum class LootTable { FISH, JUNK, TREASURE }
@@ -53,27 +53,27 @@ class Fishing : Sequence {
                 Items.BOW -> {
                     damageStack(rng, stack, 0.25f)
                     val enchants = EnchantFunctions.enchantWithLevels(rng, Enchantability.BOW, EligibleEnchantments.BOW, 30)
-                    enchants.forEach { stack.enchant(it.enchantment, it.level) }
+                    enchants.forEach { stack.addEnchantment(it.enchantment, it.level) }
                 }
 
                 Items.ENCHANTED_BOOK -> {
                     val enchants = EnchantFunctions.enchantWithLevels(rng, Enchantability.BOOK, EligibleEnchantments.FISHING, 30)
-                    val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
+                    val stored = ItemEnchantmentsComponent.Builder(ItemEnchantmentsComponent.DEFAULT)
                     enchants.forEach { stored.set(it.enchantment, it.level) }
-                    stack.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
+                    stack.set(DataComponentTypes.STORED_ENCHANTMENTS, stored.build())
                 }
 
                 Items.FISHING_ROD -> {
                     damageStack(rng, stack, 0.25f)
                     val enchants = EnchantFunctions.enchantWithLevels(rng, Enchantability.FISHING_ROD, EligibleEnchantments.FISHING_ROD, 30)
-                    enchants.forEach { stack.enchant(it.enchantment, it.level) }
+                    enchants.forEach { stack.addEnchantment(it.enchantment, it.level) }
                 }
             }
         }
     }
 
     private fun damageStack(rng: Xoroshiro128PlusPlus, stack: ItemStack, max: Float) {
-        stack.damageValue = Mth.floor((1f - ItemFunctions.applyDamage(rng, 0f, max)) * stack.maxDamage)
+        stack.damage = MathHelper.floor((1f - ItemFunctions.applyDamage(rng, 0f, max)) * stack.maxDamage)
     }
 
     companion object {
@@ -90,7 +90,7 @@ class Fishing : Sequence {
             Sequence.Entry(ItemStack(Items.LEATHER_BOOTS), 17, 27),
             Sequence.Entry(ItemStack(Items.LEATHER), 27, 37),
             Sequence.Entry(ItemStack(Items.BONE), 37, 47),
-            Sequence.Entry(ItemStack(Items.POTION).apply { set(DataComponents.POTION_CONTENTS, PotionContents(Potions.WATER)) }, 47, 57),
+            Sequence.Entry(ItemStack(Items.POTION).apply { set(DataComponentTypes.POTION_CONTENTS, PotionContentsComponent(Potions.WATER)) }, 47, 57),
             Sequence.Entry(ItemStack(Items.STRING), 57, 62),
             Sequence.Entry(ItemStack(Items.FISHING_ROD), 62, 64),
             Sequence.Entry(ItemStack(Items.BOWL), 64, 74),

@@ -7,56 +7,52 @@ import lgbt.faith.chiyoko.loot.sequences.Sequence
 import lgbt.faith.chiyoko.loot.sequences.Vault
 import net.fabricmc.fabric.api.client.command.v2.FabricClientCommandSource
 import net.fabricmc.loader.api.FabricLoader
-import net.minecraft.ChatFormatting
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.core.component.DataComponentType
-import net.minecraft.core.registries.Registries
-import net.minecraft.network.chat.Component
-import net.minecraft.network.chat.ComponentUtils
-import net.minecraft.network.chat.MutableComponent
-import net.minecraft.resources.ResourceKey
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.enchantment.Enchantment
-import net.minecraft.world.item.enchantment.EnchantmentHelper
-import net.minecraft.world.level.Level
-import net.minecraft.world.level.biome.BiomeManager
+import net.minecraft.util.Formatting
+import net.minecraft.client.MinecraftClient
+import net.minecraft.client.gui.screen.Screen
+import net.minecraft.component.ComponentType
+import net.minecraft.registry.RegistryKeys
+import net.minecraft.text.Text
+import net.minecraft.text.Texts
+import net.minecraft.text.MutableText
+import net.minecraft.registry.RegistryKey
+import net.minecraft.item.ItemStack
+import net.minecraft.enchantment.Enchantment
+import net.minecraft.enchantment.EnchantmentHelper
+import net.minecraft.world.World
+import net.minecraft.world.biome.source.BiomeAccess
 
 object ChiyokoComponents {
-    val VARIANT: DataComponentType<Int> = DataComponentType.builder<Int>()
-        .persistent(Codec.INT)
+    val VARIANT: ComponentType<Int> = ComponentType.builder<Int>()
+        .codec(Codec.INT)
         .build()
 }
 
 fun isMatchingSeed(): Boolean {
-    val mc = Minecraft.getInstance()
-    val level = mc.level ?: return false
+    val mc = MinecraftClient.getInstance()
+    val level = mc.world ?: return false
 
-    val worldSeed = mc.singleplayerServer?.worldGenSettings?.options()?.seed()
-    val worldHash = (level.biomeManager as BiomeManagerAccessor).biomeZoomSeed
+    val worldSeed = mc.server?.saveProperties?.generatorOptions?.seed
+    val worldHash = (level.biomeAccess as BiomeManagerAccessor).biomeZoomSeed
 
-    return worldSeed == Chiyoko.seed || worldHash == BiomeManager.obfuscateSeed(Chiyoko.seed)
+    return worldSeed == Chiyoko.seed || worldHash == BiomeAccess.hashSeed(Chiyoko.seed)
 }
 
-fun sendOverlay(text: MutableComponent, color: ChatFormatting = ChatFormatting.WHITE) {
-    val mc = Minecraft.getInstance()
-    mc.execute { mc.player?.sendOverlayMessage(text.withStyle(color)) }
+fun sendOverlay(text: MutableText, color: Formatting = Formatting.WHITE) {
+    val mc = MinecraftClient.getInstance()
+    mc.execute { mc.player?.sendMessage(text.formatted(color), true) }
 }
 
 val modMenuLoaded: Boolean by lazy { FabricLoader.getInstance().isModLoaded("modmenu") }
 
 fun openScreen(screen: Screen?) {
-    /*? if >=26.2 {*/
-    /*Minecraft.getInstance().gui.setScreen(screen)
-    *//*?} else {*/
-    Minecraft.getInstance().setScreen(screen)
-    /*?}*/
+    MinecraftClient.getInstance().setScreen(screen)
 }
 
 // "minecraft:blocks/gravel" -> chiyoko.sequence.blocks.gravel, falling back to the raw id
-fun sequenceName(key: String): MutableComponent {
+fun sequenceName(key: String): MutableText {
     val id = key.removePrefix("minecraft:")
-    return Component.translatableWithFallback("chiyoko.sequence." + id.replace('/', '.'), id)
+    return Text.translatableWithFallback("chiyoko.sequence." + id.replace('/', '.'), id)
 }
 
 fun handleVaultDesync(actual: ItemStack, isOminous: Boolean) {
@@ -74,7 +70,7 @@ fun handleVaultDesync(actual: ItemStack, isOminous: Boolean) {
 
     if (advances > 0) {
         Chiyoko.configManager.updateSequence(vault, advances)
-        sendOverlay(Component.translatable("chiyoko.desync.advanced", advances))
+        sendOverlay(Text.translatable("chiyoko.desync.advanced", advances))
     }
 }
 
@@ -91,9 +87,9 @@ inline fun <reified T : Sequence> trackedSequence(key: String): T? {
 }
 
 // null if the enchantment registry isn't available, 0 if the item doesn't have the enchant
-fun enchantmentLevel(level: Level, enchantment: ResourceKey<Enchantment>, stack: ItemStack): Int? {
-    val enchantRegistry = level.registryAccess().lookup(Registries.ENCHANTMENT).orElse(null) ?: return null
-    return enchantRegistry.get(enchantment)
-        .map { EnchantmentHelper.getItemEnchantmentLevel(it, stack) }
+fun enchantmentLevel(level: World, enchantment: RegistryKey<Enchantment>, stack: ItemStack): Int? {
+    val enchantRegistry = level.registryManager.getOptional(RegistryKeys.ENCHANTMENT).orElse(null) ?: return null
+    return enchantRegistry.getOptional(enchantment)
+        .map { EnchantmentHelper.getLevel(it, stack) }
         .orElse(0)
 }

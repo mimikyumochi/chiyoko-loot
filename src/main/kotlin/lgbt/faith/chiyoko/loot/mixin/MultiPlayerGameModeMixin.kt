@@ -1,140 +1,133 @@
 package lgbt.faith.chiyoko.loot.mixin
 
 import lgbt.faith.chiyoko.loot.*
-import net.minecraft.client.Minecraft
-import net.minecraft.client.multiplayer.MultiPlayerGameMode
-import net.minecraft.client.player.LocalPlayer
-import net.minecraft.core.BlockPos
-import net.minecraft.tags.BiomeTags
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.InteractionResult
-import net.minecraft.world.entity.Entity
-import net.minecraft.world.entity.ai.attributes.Attributes
-import net.minecraft.world.entity.monster.skeleton.WitherSkeleton
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.inventory.AbstractContainerMenu
-import net.minecraft.world.inventory.ContainerInput
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
-import net.minecraft.world.item.enchantment.Enchantments
-import net.minecraft.world.level.block.Blocks
-import net.minecraft.world.level.block.VaultBlock
-import net.minecraft.world.level.block.entity.vault.VaultState
-import net.minecraft.world.phys.BlockHitResult
+import net.minecraft.client.MinecraftClient
+import net.minecraft.client.network.ClientPlayerInteractionManager
+import net.minecraft.client.network.ClientPlayerEntity
+import net.minecraft.util.math.BlockPos
+import net.minecraft.registry.tag.BiomeTags
+import net.minecraft.util.Hand
+import net.minecraft.util.ActionResult
+import net.minecraft.entity.Entity
+import net.minecraft.entity.attribute.EntityAttributes
+import net.minecraft.entity.mob.WitherSkeletonEntity
+import net.minecraft.entity.player.PlayerEntity
+import net.minecraft.screen.ScreenHandler
+import net.minecraft.screen.slot.SlotActionType
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.enchantment.Enchantments
+import net.minecraft.block.Blocks
+import net.minecraft.block.VaultBlock
+import net.minecraft.block.enums.VaultState
+import net.minecraft.util.hit.BlockHitResult
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.injection.At
 import org.spongepowered.asm.mixin.injection.Inject
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable
 
-@Mixin(MultiPlayerGameMode::class)
+@Mixin(ClientPlayerInteractionManager::class)
 class MultiPlayerGameModeMixin {
 
 
     // vault - detect opening vaults
-    @Inject(method = ["destroyBlock"], at = [At("HEAD")])
+    @Inject(method = ["breakBlock"], at = [At("HEAD")])
     private fun onDestroyBlock(pos: BlockPos, ci: CallbackInfoReturnable<Boolean>) {
-        DropEventState.selfBrokenBlocks[pos.immutable()] = 0
+        DropEventState.selfBrokenBlocks[pos.toImmutable()] = 0
     }
 
-    @Inject(method = ["useItemOn"], at = [At("HEAD")])
+    @Inject(method = ["interactBlock"], at = [At("HEAD")])
     private fun onUseItemOn(
-        player: LocalPlayer,
-        hand: InteractionHand,
+        player: ClientPlayerEntity,
+        hand: Hand,
         hitResult: BlockHitResult,
-        ci: CallbackInfoReturnable<InteractionResult>,
+        ci: CallbackInfoReturnable<ActionResult>,
     ) {
 
-        val level = player.level()
+        val level = player.entityWorld
         val pos = hitResult.blockPos
         val blockState = level.getBlockState(pos)
 
-        if (!blockState.`is`(Blocks.VAULT)) return
-        if (player.isCrouching) return
+        if (!blockState.isOf(Blocks.VAULT)) return
+        if (player.isInSneakingPose) return
 
-        val isOminous = blockState.getValue(VaultBlock.OMINOUS)
+        val isOminous = blockState.get(VaultBlock.OMINOUS)
         val expectedKey = if (isOminous) Items.OMINOUS_TRIAL_KEY else Items.TRIAL_KEY
-        if (!player.getItemInHand(hand).`is`(expectedKey)) return
-        if (blockState.getValue(VaultBlock.STATE) != VaultState.ACTIVE) return
+        if (!player.getStackInHand(hand).isOf(expectedKey)) return
+        if (blockState.get(VaultBlock.VAULT_STATE) != VaultState.ACTIVE) return
 
         val vault = vaultSequence(isOminous) ?: return
 
         val predictedItems = vault.peek(1, false)
         vault.advance(1)
         Chiyoko.configManager.updateSequence(vault)
-        VaultInteractionState.pendingVaults.add(PendingVault(pos.immutable(), predictedItems, vault))
+        VaultInteractionState.pendingVaults.add(PendingVault(pos.toImmutable(), predictedItems, vault))
     }
 
     // fishing - detect reel in client side
-    @Inject(method = ["useItem"], at = [At("HEAD")])
+    @Inject(method = ["interactItem"], at = [At("HEAD")])
     private fun onUseItem(
-        player: Player,
-        hand: InteractionHand,
-        ci: CallbackInfoReturnable<InteractionResult>,
+        player: PlayerEntity,
+        hand: Hand,
+        ci: CallbackInfoReturnable<ActionResult>,
     ) {
-        val level = player.level()
-        if (!level.isClientSide) return
+        val level = player.entityWorld
+        if (!level.isClient) return
 
-        val rod = player.getItemInHand(hand)
-        if (!rod.`is`(Items.FISHING_ROD)) return
-        val hook = player.fishing ?: return
+        val rod = player.getStackInHand(hand)
+        if (!rod.isOf(Items.FISHING_ROD)) return
+        val hook = player.fishHook ?: return
 
         // biting is synced to the client via SynchedEntityData
         if (!(hook as FishingHookAccessor).biting()) return
-        val pos = hook.blockPosition()
+        val pos = hook.blockPos
 
         val luckOfTheSea = enchantmentLevel(level, Enchantments.LUCK_OF_THE_SEA, rod) ?: return
 
-        val luck = player.getAttributeValue(Attributes.LUCK).toInt() + luckOfTheSea
+        val luck = player.getAttributeValue(EntityAttributes.LUCK).toInt() + luckOfTheSea
         val isOpenWater = (hook as FishingHookAccessor).isOpenWater()
-        val isJungle = level.getBiome(pos).`is`(BiomeTags.IS_JUNGLE)
+        val isJungle = level.getBiome(pos).isIn(BiomeTags.IS_JUNGLE)
 
         DropEventState.pendingFishing.add(
-            PendingFishingReel(hook.position(), luck, isOpenWater, isJungle)
+            PendingFishingReel(hook.entityPos, luck, isOpenWater, isJungle)
         )
     }
 
     // self drops - thrown items would otherwise be routed to a nearby pending break or kill
-    @Inject(method = ["handleContainerInput"], at = [At("HEAD")])
+    @Inject(method = ["clickSlot"], at = [At("HEAD")])
     private fun onHandleContainerInput(
         containerId: Int,
         slotId: Int,
         buttonNum: Int,
-        input: ContainerInput,
-        player: Player,
+        input: SlotActionType,
+        player: PlayerEntity,
         ci: CallbackInfo,
     ) {
-        val menu = player.containerMenu
-        if (menu.containerId != containerId) return
+        val menu = player.currentScreenHandler
+        if (menu.syncId != containerId) return
 
         when {
             // Q over a slot throws from it, but only with nothing on the cursor
-            input == ContainerInput.THROW && slotId in menu.slots.indices && menu.carried.isEmpty ->
-                DropEventState.recordSelfDrop(player, menu.slots[slotId].item)
+            input == SlotActionType.THROW && slotId in menu.slots.indices && menu.cursorStack.isEmpty ->
+                DropEventState.recordSelfDrop(player, menu.slots[slotId].stack)
             // clicking outside the window throws whatever is on the cursor
-            input == ContainerInput.PICKUP && slotId == AbstractContainerMenu.SLOT_CLICKED_OUTSIDE ->
-                DropEventState.recordSelfDrop(player, menu.carried)
+            input == SlotActionType.PICKUP && slotId == ScreenHandler.EMPTY_SPACE_SLOT_INDEX ->
+                DropEventState.recordSelfDrop(player, menu.cursorStack)
         }
     }
 
-    @Inject(method = ["handleCreativeModeItemDrop"], at = [At("HEAD")])
+    @Inject(method = ["dropCreativeStack"], at = [At("HEAD")])
     private fun onHandleCreativeModeItemDrop(stack: ItemStack, ci: CallbackInfo) {
-        val player = Minecraft.getInstance().player ?: return
+        val player = MinecraftClient.getInstance().player ?: return
         DropEventState.recordSelfDrop(player, stack)
     }
 
-    //? if >=26.3 {
-    /*@Inject(method = ["dropItem"], at = [At("HEAD")])
-    private fun onDropItem(player: LocalPlayer, fullStack: Boolean, ci: CallbackInfo) {
-        DropEventState.recordSelfDrop(player, player.mainHandItem)
-    }
-    *///?}
-
     // track which wither skeletons the player has hit
 
-    @Inject(method = ["attack"], at = [At("HEAD")])
-    private fun onAttack(player: Player, target: Entity, ci: CallbackInfo) {
-        if (target is WitherSkeleton) {
+    @Inject(method = ["attackEntity"], at = [At("HEAD")])
+    private fun onAttack(player: PlayerEntity, target: Entity, ci: CallbackInfo) {
+        if (target is WitherSkeletonEntity) {
             DropEventState.recentlyAttackedWithers.add(target.id)
         }
     }

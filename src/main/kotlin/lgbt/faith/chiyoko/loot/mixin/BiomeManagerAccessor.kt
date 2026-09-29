@@ -1,12 +1,12 @@
 package lgbt.faith.chiyoko.loot.mixin
 
-import net.minecraft.world.level.biome.BiomeManager
+import net.minecraft.world.biome.source.BiomeAccess
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.gen.Accessor
 
 
-@Mixin(BiomeManager::class)
+@Mixin(BiomeAccess::class)
 interface BiomeManagerAccessor {
-    @get:Accessor("biomeZoomSeed")
+    @get:Accessor("seed")
     val biomeZoomSeed: Long
 }

@@ -4,16 +4,16 @@ import lgbt.faith.chiyoko.loot.*
 import lgbt.faith.chiyoko.loot.config.RollType
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
 import lgbt.faith.chiyoko.loot.sequences.*
-import net.minecraft.client.Minecraft
-import net.minecraft.client.multiplayer.ClientLevel
-import net.minecraft.network.chat.Component
-import net.minecraft.world.entity.monster.piglin.Piglin
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
-import net.minecraft.world.level.block.VaultBlock
-import net.minecraft.world.level.block.entity.vault.VaultBlockEntity
-import net.minecraft.world.level.block.entity.vault.VaultState
-import net.minecraft.world.phys.Vec3
+import net.minecraft.client.MinecraftClient
+import net.minecraft.client.world.ClientWorld
+import net.minecraft.text.Text
+import net.minecraft.entity.mob.PiglinEntity
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.block.VaultBlock
+import net.minecraft.block.entity.VaultBlockEntity
+import net.minecraft.block.enums.VaultState
+import net.minecraft.util.math.Vec3d
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.injection.At
 import org.spongepowered.asm.mixin.injection.Inject
@@ -21,7 +21,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo
 
 private const val MAX_CATCH_HISTORY = 1
 
-@Mixin(Minecraft::class)
+// a mob's drops spawn before its death status reaches us, so an item can show up a tick before the
+// event it belongs to. unclaimed items get this many ticks to find one before they're dropped.
+private const val UNCLAIMED_ITEM_TICKS = 3
+
+@Mixin(MinecraftClient::class)
 class MinecraftMixin {
 
     // tracks each piglins previous gold-holding state to detect the transition
@@ -30,12 +34,14 @@ class MinecraftMixin {
 
     private val recentCatches = ArrayDeque<ItemStack>(MAX_CATCH_HISTORY)
 
+    private val unclaimedItems = mutableListOf<UnclaimedItem>()
+
     private inline fun <T> nearestEligible(
         list: List<T>,
         radius: Double,
-        itemPos: net.minecraft.world.phys.Vec3,
+        itemPos: net.minecraft.util.math.Vec3d,
         isEligible: (T) -> Boolean,
-        posOf: (T) -> net.minecraft.world.phys.Vec3,
+        posOf: (T) -> net.minecraft.util.math.Vec3d,
     ): T? {
         var best: T? = null
         var bestDist = radius
@@ -75,8 +81,8 @@ class MinecraftMixin {
 
     @Inject(method = ["tick"], at = [At("HEAD")])
     private fun onTick(ci: CallbackInfo) {
-        val mc = Minecraft.getInstance()
-        val level = mc.level ?: return
+        val mc = MinecraftClient.getInstance()
+        val level = mc.world ?: return
 
 //        val player = mc.player
 //        if (player != null) {
@@ -104,7 +110,7 @@ class MinecraftMixin {
         }
     }
 
-    private fun processVaults(level: ClientLevel) {
+    private fun processVaults(level: ClientWorld) {
         if (VaultInteractionState.pendingVaults.isEmpty()) return
         val snapshot = VaultInteractionState.pendingVaults.toList()
         VaultInteractionState.pendingVaults.clear()
@@ -112,8 +118,8 @@ class MinecraftMixin {
         for (pending in snapshot) {
             val waited = pending.ticksWaited + 1
             val blockState = level.getBlockState(pending.pos)
-            val currentState = blockState.getValue(VaultBlock.STATE)
-            val isOminous = blockState.getValue(VaultBlock.OMINOUS)
+            val currentState = blockState.get(VaultBlock.VAULT_STATE)
+            val isOminous = blockState.get(VaultBlock.OMINOUS)
 
             if (currentState == VaultState.EJECTING) {
                 val blockEntity = level.getBlockEntity(pending.pos) as? VaultBlockEntity
@@ -138,21 +144,16 @@ class MinecraftMixin {
 
     // piglin gold pickup + new item entity discovery, single pass
 
-    private fun scanEntities(level: ClientLevel) {
+    private fun scanEntities(level: ClientWorld) {
         val livePiglinIds = mutableSetOf<Int>()
         val liveItemIds = mutableSetOf<Int>()
-        val freshItems = mutableListOf<Pair<Vec3, ItemStack>>()
-        val trackItems = DropEventState.pendingGravels.isNotEmpty() ||
-                DropEventState.pendingFishing.isNotEmpty() ||
-                DropEventState.pendingWithers.isNotEmpty() ||
-                DropEventState.pendingBarters.isNotEmpty() ||
-                DropEventState.pendingShulkers.isNotEmpty()
+        val freshItems = mutableListOf<Pair<Vec3d, ItemStack>>()
 
-        for (entity in level.entitiesForRendering()) {
+        for (entity in level.entities) {
             when {
-                entity is Piglin -> {
+                entity is PiglinEntity -> {
                     livePiglinIds.add(entity.id)
-                    val holdingGold = entity.offhandItem.`is`(Items.GOLD_INGOT)
+                    val holdingGold = entity.offHandStack.isOf(Items.GOLD_INGOT)
                     val wasHolding = piglinGoldState[entity.id] ?: false
 
                     if (!wasHolding && holdingGold) {
@@ -162,10 +163,10 @@ class MinecraftMixin {
                 }
                 // item ids are recorded even when nothing is pending, otherwise items already lying
                 // on the ground look "new" on the next break and get routed to it before the real drop.
-                entity is net.minecraft.world.entity.item.ItemEntity && !entity.item.isEmpty -> {
+                entity is net.minecraft.entity.ItemEntity && !entity.stack.isEmpty -> {
                     liveItemIds.add(entity.id)
                     if (DropEventState.knownItemEntityIds.add(entity.id)) {
-                        freshItems.add(entity.position() to entity.item.copy())
+                        freshItems.add(entity.entityPos to entity.stack.copy())
                     }
                 }
             }
@@ -174,13 +175,13 @@ class MinecraftMixin {
         DropEventState.knownItemEntityIds.retainAll(liveItemIds)
 
         claimSelfDrops(freshItems)
-        if (trackItems) DropEventState.newItemEntities.addAll(freshItems)
+        DropEventState.newItemEntities.addAll(freshItems)
     }
 
     // each throw by the local player produces exactly one item entity. give every pending throw
     // the closest fresh item of the same type to where it was thrown from, so a gravel drop landing
     // in the same tick as a thrown gravel stack isn't the one that gets discarded.
-    private fun claimSelfDrops(freshItems: MutableList<Pair<Vec3, ItemStack>>) {
+    private fun claimSelfDrops(freshItems: MutableList<Pair<Vec3d, ItemStack>>) {
         val drops = DropEventState.pendingSelfDrops
         val iter = drops.iterator()
         while (iter.hasNext()) {
@@ -200,13 +201,16 @@ class MinecraftMixin {
 
     // route newly arrived item entities to the nearest pending event
 
-    private fun routeNewItemEntities(level: ClientLevel) {
-        if (DropEventState.newItemEntities.isEmpty()) return
+    private fun routeNewItemEntities(level: ClientWorld) {
+        if (DropEventState.newItemEntities.isEmpty() && unclaimedItems.isEmpty()) return
 
-        val newItems = DropEventState.newItemEntities.toList()
+        val newItems = unclaimedItems + DropEventState.newItemEntities.map { (pos, stack) -> UnclaimedItem(pos, stack) }
         DropEventState.newItemEntities.clear()
+        unclaimedItems.clear()
 
-        for ((itemPos, itemStack) in newItems) {
+        for (item in newItems) {
+            val itemPos = item.pos
+            val itemStack = item.stack
             // gravel and fishing each drop exactly 1 item, so fill those first.
             val target: PendingDrop? = nearestEligible(
                 DropEventState.pendingGravels, PendingGravelBreak.RADIUS, itemPos,
@@ -218,7 +222,9 @@ class MinecraftMixin {
                 posOf = { it.pos },
             ) ?: nearestEligible(
                 DropEventState.pendingWithers, PendingWitherDeath.RADIUS, itemPos,
-                isEligible = { it.collectedItems.size < 3 },
+                // the held stone sword drops from the entity's own random, not the loot table - routing it here
+                // made resolveWither bail out without advancing
+                isEligible = { it.collectedItems.size < 3 && itemStack.item in WITHER_LOOT },
                 posOf = { it.pos },
             ) ?: nearestEligible(
                 DropEventState.pendingShulkers, PendingShulkerDeath.RADIUS, itemPos,
@@ -228,11 +234,12 @@ class MinecraftMixin {
                 DropEventState.pendingBarters, PendingPiglinBarter.RADIUS, itemPos,
                 isEligible = { it.collectedItems.isEmpty() && it.ticksWaited >= 115 },
                 posOf = { pending ->
-                    level.getEntity(pending.piglinId)?.position() ?: net.minecraft.world.phys.Vec3.ZERO
+                    level.getEntityById(pending.piglinId)?.entityPos ?: net.minecraft.util.math.Vec3d.ZERO
                 },
             )
 
-            target?.collect(itemStack)
+            if (target != null) target.collect(itemStack)
+            else if (++item.age < UNCLAIMED_ITEM_TICKS) unclaimedItems.add(item)
         }
     }
 
@@ -294,7 +301,7 @@ class MinecraftMixin {
         }
         Chiyoko.configManager.updateSequence(gravel, advances)
 
-        sendOverlay(Component.translatable("chiyoko.desync.advanced", advances))
+        sendOverlay(Text.translatable("chiyoko.desync.advanced", advances))
     }
 
     // shulker
@@ -420,7 +427,7 @@ class MinecraftMixin {
             Chiyoko.configManager.updateSequence(fishing, rngAdvances)
         }
 
-        sendOverlay(Component.translatable("chiyoko.desync.advanced_matched", advances, catchList.size))
+        sendOverlay(Text.translatable("chiyoko.desync.advanced_matched", advances, catchList.size))
     }
 
     private fun tryMatchCatchSequence(fishing: Fishing, catchList: List<ItemStack>, p: PendingFishingReel): Int? {
@@ -469,7 +476,7 @@ class MinecraftMixin {
             desynced = actual.item != predicted.firstOrNull()?.item
         }
         Chiyoko.configManager.updateSequence(barter, advances)
-        sendOverlay(Component.translatable("chiyoko.desync.advanced", advances))
+        sendOverlay(Text.translatable("chiyoko.desync.advanced", advances))
 
     }
 
@@ -511,7 +518,7 @@ class MinecraftMixin {
         // found - otherwise only the config is corrected and the in-memory rng stays behind.
         sequence.loadState(found.seedLo, found.seedHi)
         Chiyoko.configManager.updateSequence(sequence, advancements.toLong())
-        sendOverlay(Component.translatable("chiyoko.desync.advanced", advancements))
+        sendOverlay(Text.translatable("chiyoko.desync.advanced", advancements))
     }
 
     private fun matchesPrediction(actual: List<ItemStack>, predicted: List<ItemStack>): Boolean {

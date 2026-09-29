@@ -3,13 +3,13 @@ package lgbt.faith.chiyoko.loot.functions
 import lgbt.faith.chiyoko.loot.rand.LCG
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
 import lgbt.faith.chiyoko.loot.sendOverlay
-import net.minecraft.client.Minecraft
-import net.minecraft.core.Holder
-import net.minecraft.core.registries.Registries
-import net.minecraft.resources.Identifier
+import net.minecraft.client.MinecraftClient
+import net.minecraft.registry.entry.RegistryEntry
+import net.minecraft.registry.RegistryKeys
+import net.minecraft.util.Identifier
 import kotlin.math.roundToLong
-import net.minecraft.world.item.enchantment.Enchantment as MinecraftEnchantment
-import net.minecraft.world.item.enchantment.EnchantmentInstance as MinecraftEnchantmentInstance
+import net.minecraft.enchantment.Enchantment as MinecraftEnchantment
+import net.minecraft.enchantment.EnchantmentLevelEntry as MinecraftEnchantmentInstance
 
 object EnchantFunctions {
 
@@ -30,14 +30,14 @@ object EnchantFunctions {
         return finalCost
     }
 
-    fun enchantmentIdentifierToHolder(id: String): Holder<MinecraftEnchantment>? {
-        val mc = Minecraft.getInstance()
-        val registries = mc.player?.level()?.registryAccess() ?: return null
-        val enchantmentRegistry = registries.lookupOrThrow(Registries.ENCHANTMENT)
+    fun enchantmentIdentifierToHolder(id: String): RegistryEntry<MinecraftEnchantment>? {
+        val mc = MinecraftClient.getInstance()
+        val registries = mc.player?.entityWorld?.registryManager ?: return null
+        val enchantmentRegistry = registries.getOrThrow(RegistryKeys.ENCHANTMENT)
 
         val identifier = Identifier.tryParse(id)  ?: return null
 
-        return enchantmentRegistry.get(identifier).orElse(null)
+        return enchantmentRegistry.getEntry(identifier).orElse(null)
     }
 
     // returns a minecraft enchantment object holder
@@ -125,6 +125,8 @@ object EnchantFunctions {
             Enchantment.ALL.sortedBy { def -> EligibleEnchantments.legacyOrderIndex(def.id) }
         } else {
             Enchantment.ALL
+                .filter { def -> EligibleEnchantments.onRandomLootIndex(def.id) != Int.MAX_VALUE }
+                .sortedBy { def -> EligibleEnchantments.onRandomLootIndex(def.id) }
         }
 
         return allEnchants

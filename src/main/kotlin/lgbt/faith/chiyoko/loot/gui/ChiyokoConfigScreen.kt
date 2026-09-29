@@ -4,13 +4,13 @@ import lgbt.faith.chiyoko.loot.Chiyoko
 import lgbt.faith.chiyoko.loot.gui.OverlayList.LabeledEntry.Companion.toggleLabel
 import lgbt.faith.chiyoko.loot.modMenuLoaded
 import lgbt.faith.chiyoko.loot.openScreen
-import net.minecraft.client.gui.components.Button
-import net.minecraft.client.gui.components.EditBox
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.network.chat.Component
+import net.minecraft.client.gui.widget.ButtonWidget
+import net.minecraft.client.gui.widget.TextFieldWidget
+import net.minecraft.client.gui.screen.Screen
+import net.minecraft.text.Text
 
 // parent is the pause screen, or mod menu's mod list when opened from there
-class ChiyokoConfigScreen(private val parent: Screen?) : Screen(Component.translatable("chiyoko.config.title")) {
+class ChiyokoConfigScreen(private val parent: Screen?) : Screen(Text.translatable("chiyoko.config.title")) {
 
     override fun init() {
         val btnWidth = 40
@@ -25,33 +25,33 @@ class ChiyokoConfigScreen(private val parent: Screen?) : Screen(Component.transl
         val row1TotalWidth = inputWidth + (gap*2) + btnWidth
         val row1StartX = centerX - row1TotalWidth / 2
 
-        val seedInput = EditBox(
-            this.font,
+        val seedInput = TextFieldWidget(
+            this.textRenderer,
             centerX - (inputWidth/2) - (gap*2),
             yPos,
             inputWidth,
             btnHeight,
-            Component.translatable("chiyoko.config.seed")
+            Text.translatable("chiyoko.config.seed")
         )
-        seedInput.setResponder { text ->
+        seedInput.setChangedListener { text ->
             if (text.isNotEmpty() && !text.matches(Regex("-?\\d*"))) {
-                seedInput.value = text.replace(Regex("[^0-9-]"), "")
+                seedInput.text = text.replace(Regex("[^0-9-]"), "")
             }
         }
-        seedInput.value = Chiyoko.seed.toString()
+        seedInput.text = Chiyoko.seed.toString()
         seedInput.setMaxLength(20)
-        this.addRenderableWidget(seedInput)
+        this.addDrawableChild(seedInput)
 
-        this.addRenderableWidget(
-            Button.builder(Component.translatable("chiyoko.config.save")) {
+        this.addDrawableChild(
+            ButtonWidget.builder(Text.translatable("chiyoko.config.save")) {
 
-                val s = seedInput.value
+                val s = seedInput.text
                 Chiyoko.seed = s.toLong()
                 Chiyoko.changeWorldSeed()
 
                 openScreen(null)
             }
-            .bounds(row1StartX + inputWidth+gap, yPos, btnWidth, btnHeight)
+            .dimensions(row1StartX + inputWidth+gap, yPos, btnWidth, btnHeight)
             .build()
         )
 
@@ -61,18 +61,18 @@ class ChiyokoConfigScreen(private val parent: Screen?) : Screen(Component.transl
         val row2StartX = centerX - row2TotalWidth / 2
         val row2Y = yPos + btnHeight + gap
 
-        this.addRenderableWidget(
-            Button.builder(Component.translatable("chiyoko.config.edit_layout")) {
+        this.addDrawableChild(
+            ButtonWidget.builder(Text.translatable("chiyoko.config.edit_layout")) {
                 openScreen(ChiyokoLayoutEditor(this))
             }
-            .bounds(row2StartX, row2Y, editBtnWidth, btnHeight)
+            .dimensions(row2StartX, row2Y, editBtnWidth, btnHeight)
             .build()
         )
-        this.addRenderableWidget(
-            Button.builder(Component.translatable("chiyoko.config.edit_overlays")) {
+        this.addDrawableChild(
+            ButtonWidget.builder(Text.translatable("chiyoko.config.edit_overlays")) {
                 openScreen(ChiyokoOverlayEditor(this))
             }
-            .bounds(row2StartX + editBtnWidth + gap, row2Y, editBtnWidth, btnHeight)
+            .dimensions(row2StartX + editBtnWidth + gap, row2Y, editBtnWidth, btnHeight)
             .build()
         )
 
@@ -82,13 +82,13 @@ class ChiyokoConfigScreen(private val parent: Screen?) : Screen(Component.transl
         // the pause button is the only way back into this screen
         if (modMenuLoaded) {
             val config = Chiyoko.configManager.config
-            this.addRenderableWidget(
-                Button.builder(pauseButtonLabel()) {
+            this.addDrawableChild(
+                ButtonWidget.builder(pauseButtonLabel()) {
                     config.showPauseButton = !config.showPauseButton
                     Chiyoko.configManager.save()
                     it.message = pauseButtonLabel()
                 }
-                    .bounds(centerX - row2TotalWidth / 2, nextRowY, row2TotalWidth, btnHeight)
+                    .dimensions(centerX - row2TotalWidth / 2, nextRowY, row2TotalWidth, btnHeight)
                     .build()
             )
             nextRowY += btnHeight + gap
@@ -97,19 +97,19 @@ class ChiyokoConfigScreen(private val parent: Screen?) : Screen(Component.transl
         // last row [close (75px)] - total 75px, centred
         val closeStartX = centerX - (editBtnWidth/2)
 
-        this.addRenderableWidget(
-            Button.builder(Component.translatable("chiyoko.config.close")) { onClose() }
-                .bounds(closeStartX, nextRowY, editBtnWidth, btnHeight)
+        this.addDrawableChild(
+            ButtonWidget.builder(Text.translatable("chiyoko.config.close")) { close() }
+                .dimensions(closeStartX, nextRowY, editBtnWidth, btnHeight)
                 .build()
         )
     }
 
-    private fun pauseButtonLabel(): Component = Component.translatable(
+    private fun pauseButtonLabel(): Text = Text.translatable(
         "chiyoko.config.pause_button",
         toggleLabel(Chiyoko.configManager.config.showPauseButton, "chiyoko.toggle.shown", "chiyoko.toggle.hidden"),
     )
 
-    override fun onClose() {
+    override fun close() {
         openScreen(parent)
     }
 }

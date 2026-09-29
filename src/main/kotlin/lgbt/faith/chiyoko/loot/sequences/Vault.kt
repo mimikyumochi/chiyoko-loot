@@ -6,16 +6,16 @@ import lgbt.faith.chiyoko.loot.functions.EnchantFunctions
 import lgbt.faith.chiyoko.loot.functions.Enchantability
 import lgbt.faith.chiyoko.loot.functions.ItemFunctions
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
-import net.minecraft.core.Holder
-import net.minecraft.core.component.DataComponents
-import net.minecraft.util.Mth
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
-import net.minecraft.world.item.alchemy.PotionContents
-import net.minecraft.world.item.alchemy.Potions
-import net.minecraft.world.item.component.OminousBottleAmplifier
-import net.minecraft.world.item.enchantment.Enchantment
-import net.minecraft.world.item.enchantment.ItemEnchantments
+import net.minecraft.registry.entry.RegistryEntry
+import net.minecraft.component.DataComponentTypes
+import net.minecraft.util.math.MathHelper
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.component.type.PotionContentsComponent
+import net.minecraft.potion.Potions
+import net.minecraft.component.type.OminousBottleAmplifierComponent
+import net.minecraft.enchantment.Enchantment
+import net.minecraft.component.type.ItemEnchantmentsComponent
 
 class Vault(val isOminous: Boolean) : Sequence {
     override lateinit var xoroshiro: Xoroshiro128PlusPlus
@@ -90,8 +90,8 @@ class Vault(val isOminous: Boolean) : Sequence {
                 Items.DIAMOND -> item.count = ItemFunctions.setCount(rng, 2, 3)
 
                 Items.OMINOUS_BOTTLE -> item.set(
-                    DataComponents.OMINOUS_BOTTLE_AMPLIFIER,
-                    OminousBottleAmplifier(rng.nextInt(3) + 2)
+                    DataComponentTypes.OMINOUS_BOTTLE_AMPLIFIER,
+                    OminousBottleAmplifierComponent(rng.nextInt(3) + 2)
                 ) // 2-4
 
                 Items.CROSSBOW -> enchantItem(rng, item, 5, 20, Enchantability.CROSSBOW, EligibleEnchantments.CROSSBOW)
@@ -136,9 +136,9 @@ class Vault(val isOminous: Boolean) : Sequence {
                 }
 
 
-                Items.OMINOUS_BOTTLE -> item.set(DataComponents.OMINOUS_BOTTLE_AMPLIFIER, OminousBottleAmplifier(rng.nextInt(2)))
+                Items.OMINOUS_BOTTLE -> item.set(DataComponentTypes.OMINOUS_BOTTLE_AMPLIFIER, OminousBottleAmplifierComponent(rng.nextInt(2)))
 
-                Items.SHIELD -> item.damageValue = Mth.floor(1f - ItemFunctions.applyDamage(rng, 0.5f, 1f) * item.maxDamage)
+                Items.SHIELD -> item.damage = MathHelper.floor(1f - ItemFunctions.applyDamage(rng, 0.5f, 1f) * item.maxDamage)
 
                 Items.BOW                -> enchantItem(rng, item, 5, 15, Enchantability.BOW, EligibleEnchantments.BOW)
                 Items.CROSSBOW           -> enchantItem(rng, item, 5, 20, Enchantability.CROSSBOW, EligibleEnchantments.CROSSBOW)
@@ -164,7 +164,7 @@ class Vault(val isOminous: Boolean) : Sequence {
     private fun enchantItem(rng: Xoroshiro128PlusPlus, item: ItemStack, min: Int, max: Int, enchantability: Int, eligible: Set<String>) {
         val levels = ItemFunctions.setCount(rng, min, max)
         EnchantFunctions.enchantWithLevels(rng, enchantability, eligible, levels).forEach {
-            item.enchant(it.enchantment, it.level)
+            item.addEnchantment(it.enchantment, it.level)
         }
     }
 
@@ -175,10 +175,10 @@ class Vault(val isOminous: Boolean) : Sequence {
         }
     }
 
-    private fun storeEnchant(item: ItemStack, enchantment: Holder<Enchantment>, level: Int) {
-        val stored = ItemEnchantments.Mutable(ItemEnchantments.EMPTY)
+    private fun storeEnchant(item: ItemStack, enchantment: RegistryEntry<Enchantment>, level: Int) {
+        val stored = ItemEnchantmentsComponent.Builder(ItemEnchantmentsComponent.DEFAULT)
         stored.set(enchantment, level)
-        item.set(DataComponents.STORED_ENCHANTMENTS, stored.toImmutable())
+        item.set(DataComponentTypes.STORED_ENCHANTMENTS, stored.build())
     }
 
     private fun mergeStacks(input: List<ItemStack>): List<ItemStack> {
@@ -190,11 +190,11 @@ class Vault(val isOminous: Boolean) : Sequence {
             var remaining = stack.count
 
             for (existing in result) {
-                if (ItemStack.isSameItemSameComponents(existing, stack)) {
-                    val space = existing.maxStackSize - existing.count
+                if (ItemStack.areItemsAndComponentsEqual(existing, stack)) {
+                    val space = existing.maxCount - existing.count
                     if (space > 0) {
                         val toMove = minOf(space, remaining)
-                        existing.grow(toMove)
+                        existing.increment(toMove)
                         remaining -= toMove
                         if (remaining <= 0) break
                     }
@@ -216,7 +216,7 @@ class Vault(val isOminous: Boolean) : Sequence {
 
         val NORMAL_COMMON = listOf(
             ItemStack(Items.ARROW) to 4,
-            ItemStack(Items.TIPPED_ARROW).apply { set(DataComponents.POTION_CONTENTS, PotionContents(Potions.POISON)) } to 4,
+            ItemStack(Items.TIPPED_ARROW).apply { set(DataComponentTypes.POTION_CONTENTS, PotionContentsComponent(Potions.POISON)) } to 4,
             ItemStack(Items.EMERALD) to 4,
             ItemStack(Items.WIND_CHARGE) to 3,
             ItemStack(Items.IRON_INGOT) to 3,
@@ -248,7 +248,7 @@ class Vault(val isOminous: Boolean) : Sequence {
         val OMINOUS_COMMON = listOf(
             ItemStack(Items.EMERALD) to 5,
             ItemStack(Items.WIND_CHARGE) to 4,
-            ItemStack(Items.TIPPED_ARROW).apply { set(DataComponents.POTION_CONTENTS, PotionContents(Potions.STRONG_SLOWNESS)) } to 3,
+            ItemStack(Items.TIPPED_ARROW).apply { set(DataComponentTypes.POTION_CONTENTS, PotionContentsComponent(Potions.STRONG_SLOWNESS)) } to 3,
             ItemStack(Items.DIAMOND) to 2,
             ItemStack(Items.OMINOUS_BOTTLE) to 1
         )

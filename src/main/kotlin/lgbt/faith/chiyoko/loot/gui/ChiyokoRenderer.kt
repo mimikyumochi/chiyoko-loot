@@ -5,20 +5,20 @@ import lgbt.faith.chiyoko.loot.config.OverlayRotation
 import lgbt.faith.chiyoko.loot.config.RollType
 import lgbt.faith.chiyoko.loot.keys
 import lgbt.faith.chiyoko.loot.sequences.*
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.GuiGraphicsExtractor
-import net.minecraft.client.renderer.RenderPipelines
-import net.minecraft.core.Holder
-import net.minecraft.core.registries.Registries
-import net.minecraft.resources.Identifier
-import net.minecraft.tags.BiomeTags
-import net.minecraft.world.InteractionHand
-import net.minecraft.world.entity.player.Player
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.enchantment.Enchantment
-import net.minecraft.world.item.enchantment.EnchantmentHelper
-import net.minecraft.world.item.enchantment.Enchantments
-import net.minecraft.world.level.Level
+import net.minecraft.client.MinecraftClient
+import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gl.RenderPipelines
+import net.minecraft.registry.entry.RegistryEntry
+import net.minecraft.registry.RegistryKeys
+import net.minecraft.util.Identifier
+import net.minecraft.registry.tag.BiomeTags
+import net.minecraft.util.Hand
+import net.minecraft.entity.player.PlayerEntity
+import net.minecraft.item.ItemStack
+import net.minecraft.enchantment.Enchantment
+import net.minecraft.enchantment.EnchantmentHelper
+import net.minecraft.enchantment.Enchantments
+import net.minecraft.world.World
 
 class ChiyokoRenderer {
     data class SubList(val xOffset: Int, val yOffset: Int, val items: List<ItemStack>)
@@ -38,25 +38,25 @@ class ChiyokoRenderer {
 
     private val rollCache = HashMap<String, Pair<RollCacheKey, List<SubList>>>()
 
-    private var cachedRegistryLevel: Level? = null
-    private var cachedLootingHolder: Holder<Enchantment>? = null
-    private var cachedFortuneHolder: Holder<Enchantment>? = null
+    private var cachedRegistryLevel: World? = null
+    private var cachedLootingHolder: RegistryEntry<Enchantment>? = null
+    private var cachedFortuneHolder: RegistryEntry<Enchantment>? = null
 
-    val mc = Minecraft.getInstance()
+    val mc = MinecraftClient.getInstance()
 
-    val SLOT_SPRITE = Identifier.parse("minecraft:container/slot")
-    val font = mc.font
+    val SLOT_SPRITE = Identifier.of("minecraft:container/slot")
+    val font = mc.textRenderer
 
     private fun gridToPixel(cell: Int) = (cell * gridSize) + border
 
     private val gridSize = 20
     private val border = 1
 
-    private fun enchantHolders(level: Level): Pair<Holder<Enchantment>, Holder<Enchantment>> {
+    private fun enchantHolders(level: World): Pair<RegistryEntry<Enchantment>, RegistryEntry<Enchantment>> {
         if (cachedRegistryLevel === level && cachedLootingHolder != null && cachedFortuneHolder != null) {
             return cachedLootingHolder!! to cachedFortuneHolder!!
         }
-        val enchantLookup = level.registryAccess().lookupOrThrow(Registries.ENCHANTMENT)
+        val enchantLookup = level.registryManager.getOrThrow(RegistryKeys.ENCHANTMENT)
         val looting = enchantLookup.getOrThrow(Enchantments.LOOTING)
         val fortune = enchantLookup.getOrThrow(Enchantments.FORTUNE)
         cachedRegistryLevel = level
@@ -65,48 +65,44 @@ class ChiyokoRenderer {
         return looting to fortune
     }
 
-    private fun enchantLevel(holder: Holder<Enchantment>, player: Player): Int {
-        val mainhand = player.getItemInHand(InteractionHand.MAIN_HAND)
-        val offhand = player.getItemInHand(InteractionHand.OFF_HAND)
+    private fun enchantLevel(holder: RegistryEntry<Enchantment>, player: PlayerEntity): Int {
+        val mainhand = player.getStackInHand(Hand.MAIN_HAND)
+        val offhand = player.getStackInHand(Hand.OFF_HAND)
         return maxOf(
-            EnchantmentHelper.getItemEnchantmentLevel(holder, mainhand),
-            EnchantmentHelper.getItemEnchantmentLevel(holder, offhand),
+            EnchantmentHelper.getLevel(holder, mainhand),
+            EnchantmentHelper.getLevel(holder, offhand),
         )
     }
 
-    fun render(graphics: GuiGraphicsExtractor) {
+    fun render(graphics: DrawContext) {
         if (!Chiyoko.loaded) return
 
 
         if (
-        /*? if >=26.2 {*/
-        /*mc.gui.hud.isHidden
-        *//*?} else {*/
-            mc.options.hideGui
-        /*?}*/
+            mc.options.hudHidden
             ) return
         var hoveredItem: ItemStack? = null
 
         val player = mc.player ?: return
-        val level = mc.level ?: return
+        val level = mc.world ?: return
 
         val (lootingHolder, fortuneHolder) = enchantHolders(level)
 
-        val mouseX = mc.mouseHandler.xpos() * mc.window.guiScaledWidth / mc.window.screenWidth
-        val mouseY = mc.mouseHandler.ypos() * mc.window.guiScaledHeight / mc.window.screenHeight
+        val mouseX = mc.mouse.x * mc.window.scaledWidth / mc.window.width
+        val mouseY = mc.mouse.y * mc.window.scaledHeight / mc.window.height
 
         val mx = mouseX.toInt()
         val my = mouseY.toInt()
 
-        val rod = mc.player?.fishing
-        val rodPos = rod?.blockPosition()
-        val playerPos = mc.player?.blockPosition()
+        val rod = mc.player?.fishHook
+        val rodPos = rod?.blockPos
+        val playerPos = mc.player?.blockPos
         val luck = (mc.player?.luck ?: 0.0f).toInt()
 
-        val isOpenWater = rod?.isOpenWaterFishing ?: true
+        val isOpenWater = rod?.isInOpenWater ?: true
         val isJungle =
-            if (rodPos != null) level.getBiome(rodPos).`is`(BiomeTags.IS_JUNGLE)
-            else if (playerPos != null) level.getBiome(playerPos).`is`(BiomeTags.IS_JUNGLE)
+            if (rodPos != null) level.getBiome(rodPos).isIn(BiomeTags.IS_JUNGLE)
+            else if (playerPos != null) level.getBiome(playerPos).isIn(BiomeTags.IS_JUNGLE)
             else false
 
         val lootingLevel = enchantLevel(lootingHolder, player)
@@ -189,9 +185,9 @@ class ChiyokoRenderer {
                     val itemX = x + subList.xOffset + step * vector[0]
                     val itemY = y + subList.yOffset + step * vector[1]
 
-                    graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SLOT_SPRITE, itemX, itemY, gridSize - 2, gridSize - 2)
-                    graphics.item(item, itemX + 1, itemY + 1)
-                    graphics.itemDecorations(font, item, itemX + 1, itemY + 1)
+                    graphics.drawGuiTexture(RenderPipelines.GUI_TEXTURED, SLOT_SPRITE, itemX, itemY, gridSize - 2, gridSize - 2)
+                    graphics.drawItem(item, itemX + 1, itemY + 1)
+                    graphics.drawStackOverlay(font, item, itemX + 1, itemY + 1)
                     val hovered = mx in itemX until (itemX + gridSize) && my in itemY until (itemY + gridSize)
                     if (hovered) {
                         hoveredItem = item
@@ -200,9 +196,9 @@ class ChiyokoRenderer {
             }
         }
         if (hoveredItem != null) {
-            val tickDelta = mc.deltaTracker.gameTimeDeltaTicks
-            graphics.setTooltipForNextFrame(mc.font, hoveredItem, mx, my)
-            graphics.extractDeferredElements(mx, my, tickDelta)
+            val tickDelta = mc.renderTickCounter.dynamicDeltaTicks
+            graphics.drawItemTooltip(mc.textRenderer, hoveredItem, mx, my)
+            graphics.drawDeferredElements()
         }
     }
 }

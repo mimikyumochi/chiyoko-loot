@@ -1,7 +1,7 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("net.fabricmc.fabric-loom") version "1.16-SNAPSHOT"
+    id("net.fabricmc.fabric-loom-remap") version "1.16-SNAPSHOT"
     `maven-publish`
     id("org.jetbrains.kotlin.jvm") version "2.3.20"
 }
@@ -19,6 +19,11 @@ version = resolveProperty("mod_version", "0.0.0")
 group = resolveProperty("maven_group", "lgbt.faith")
 
 loom {
+    // mixins are kotlin, so the annotation processor can't generate a refmap - remap them from bytecode instead
+    mixin {
+        useLegacyMixinAp = false
+    }
+
     mods {
         register("chiyoko") {
             sourceSet(sourceSets.main.get())
@@ -42,15 +47,16 @@ repositories {
 dependencies {
     implementation("com.google.guava:guava:33.0.0-jre")
 
-    minecraft("com.mojang:minecraft:${resolveProperty("minecraft_version", "26.2")}")
+    minecraft("com.mojang:minecraft:${resolveProperty("minecraft_version", "1.21.11")}")
+    mappings("net.fabricmc:yarn:${resolveProperty("yarn_mappings", "1.21.11+build.6")}:v2")
 
-    implementation("net.fabricmc:fabric-loader:${resolveProperty("loader_version", "0.19.3")}")
+    modImplementation("net.fabricmc:fabric-loader:${resolveProperty("loader_version", "0.19.3")}")
 
-    implementation("net.fabricmc.fabric-api:fabric-api:${resolveProperty("fabric_api_version", "0.154.2+26.2")}")
-    implementation("net.fabricmc:fabric-language-kotlin:${resolveProperty("fabric_kotlin_version", "1.13.12+kotlin.2.4.0")}")
+    modImplementation("net.fabricmc.fabric-api:fabric-api:${resolveProperty("fabric_api_version", "0.141.6+1.21.11")}")
+    modImplementation("net.fabricmc:fabric-language-kotlin:${resolveProperty("fabric_kotlin_version", "1.13.12+kotlin.2.4.0")}")
 
     // optional - only the api is compiled against, the integration class is never loaded without mod menu
-    compileOnly("com.terraformersmc:modmenu:${resolveProperty("modmenu_version", "20.0.3")}") { isTransitive = false }
+    modCompileOnly("com.terraformersmc:modmenu:${resolveProperty("modmenu_version", "17.0.1")}") { isTransitive = false }
 }
 
 tasks.processResources {
@@ -73,20 +79,20 @@ tasks.processResources {
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release = 25
+    options.release = 21
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget = JvmTarget.JVM_25
+        jvmTarget = JvmTarget.JVM_21
     }
 }
 
 java {
     withSourcesJar()
 
-    sourceCompatibility = JavaVersion.VERSION_25
-    targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
 }
 
 tasks.jar {

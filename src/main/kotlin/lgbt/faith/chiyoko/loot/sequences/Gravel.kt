@@ -1,8 +1,8 @@
 package lgbt.faith.chiyoko.loot.sequences
 
 import lgbt.faith.chiyoko.loot.rand.Xoroshiro128PlusPlus
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
 
 class Gravel : Sequence {
     override lateinit var xoroshiro: Xoroshiro128PlusPlus

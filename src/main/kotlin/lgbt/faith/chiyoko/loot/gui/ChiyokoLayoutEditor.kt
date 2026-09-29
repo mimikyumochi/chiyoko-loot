@@ -3,13 +3,13 @@ package lgbt.faith.chiyoko.loot.gui
 import lgbt.faith.chiyoko.loot.Chiyoko
 import lgbt.faith.chiyoko.loot.config.GridPosition
 import lgbt.faith.chiyoko.loot.openScreen
-import net.minecraft.client.gui.GuiGraphicsExtractor
-import net.minecraft.client.gui.components.Button
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.client.input.MouseButtonEvent
-import net.minecraft.network.chat.Component
+import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.widget.ButtonWidget
+import net.minecraft.client.gui.screen.Screen
+import net.minecraft.client.gui.Click
+import net.minecraft.text.Text
 
-class ChiyokoLayoutEditor(private val parent: Screen) : Screen(Component.translatable("chiyoko.layout.title")) {
+class ChiyokoLayoutEditor(private val parent: Screen) : Screen(Text.translatable("chiyoko.layout.title")) {
 
     private var dragging: String? = null
     private var dragOffsetX: Int = 0
@@ -26,21 +26,21 @@ class ChiyokoLayoutEditor(private val parent: Screen) : Screen(Component.transla
 
     private val configManager = Chiyoko.configManager
 
-    private lateinit var doneButton: Button
+    private lateinit var doneButton: ButtonWidget
     private var buttonAtBottom = true
 
     override fun init() {
-        doneButton = Button.builder(Component.translatable("chiyoko.layout.done")) { onClose() }.bounds(width / 2 - 100, height - 27, 200, 20).build()
-        addRenderableWidget(doneButton)
+        doneButton = ButtonWidget.builder(Text.translatable("chiyoko.layout.done")) { close() }.dimensions(width / 2 - 100, height - 27, 200, 20).build()
+        addDrawableChild(doneButton)
         buttonAtBottom = true
 
     }
-    override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, a: Float) {
+    override fun render(graphics: DrawContext, mouseX: Int, mouseY: Int, a: Float) {
         ChiyokoRenderer().render(graphics)
-        super.extractRenderState(graphics, mouseX, mouseY, a)
+        super.render(graphics, mouseX, mouseY, a)
     }
 
-    override fun mouseClicked(event: MouseButtonEvent, doubleClick: Boolean): Boolean {
+    override fun mouseClicked(event: Click, doubleClick: Boolean): Boolean {
         val mouseGridX = pixelToGrid(event.x)
         val mouseGridY = pixelToGrid(event.y)
 
@@ -55,7 +55,7 @@ class ChiyokoLayoutEditor(private val parent: Screen) : Screen(Component.transla
 
         return super.mouseClicked(event, doubleClick)
     }
-    override fun mouseDragged(event: MouseButtonEvent, dx: Double, dy: Double): Boolean {
+    override fun mouseDragged(event: Click, dx: Double, dy: Double): Boolean {
         dragging?.let { key ->
             configManager.config.hudSlots[key] = GridPosition(
                 (pixelToGrid(event.x) - dragOffsetX).coerceIn(0, gridCols),
@@ -67,7 +67,7 @@ class ChiyokoLayoutEditor(private val parent: Screen) : Screen(Component.transla
         return super.mouseDragged(event, dx, dy)
     }
 
-    override fun mouseReleased(event: MouseButtonEvent): Boolean {
+    override fun mouseReleased(event: Click): Boolean {
         dragging = null
         configManager.save()
         return super.mouseReleased(event)
@@ -95,7 +95,7 @@ class ChiyokoLayoutEditor(private val parent: Screen) : Screen(Component.transla
 
     }
 
-    override fun onClose() {
+    override fun close() {
         configManager.save()
         openScreen(parent)
     }

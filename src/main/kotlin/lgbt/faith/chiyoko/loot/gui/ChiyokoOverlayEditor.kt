@@ -1,21 +1,21 @@
 package lgbt.faith.chiyoko.loot.gui
 
-import net.minecraft.ChatFormatting
-import net.minecraft.client.Minecraft
-import net.minecraft.client.gui.Font
-import net.minecraft.client.gui.GuiGraphicsExtractor
-import net.minecraft.client.gui.components.AbstractWidget
-import net.minecraft.client.gui.components.Button
-import net.minecraft.client.gui.components.ContainerObjectSelectionList
-import net.minecraft.client.gui.components.EditBox
-import net.minecraft.client.gui.components.Tooltip
-import net.minecraft.client.gui.components.events.GuiEventListener
-import net.minecraft.client.gui.narration.NarratableEntry
-import net.minecraft.client.gui.screens.Screen
-import net.minecraft.network.chat.Component
-import net.minecraft.network.chat.MutableComponent
-import net.minecraft.world.item.ItemStack
-import net.minecraft.world.item.Items
+import net.minecraft.util.Formatting
+import net.minecraft.client.MinecraftClient
+import net.minecraft.client.font.TextRenderer
+import net.minecraft.client.gui.DrawContext
+import net.minecraft.client.gui.widget.ClickableWidget
+import net.minecraft.client.gui.widget.ButtonWidget
+import net.minecraft.client.gui.widget.ElementListWidget
+import net.minecraft.client.gui.widget.TextFieldWidget
+import net.minecraft.client.gui.tooltip.Tooltip
+import net.minecraft.client.gui.Element
+import net.minecraft.client.gui.Selectable
+import net.minecraft.client.gui.screen.Screen
+import net.minecraft.text.Text
+import net.minecraft.text.MutableText
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
 import lgbt.faith.chiyoko.loot.Chiyoko
 import lgbt.faith.chiyoko.loot.config.ChiyokoConfigManager
 import lgbt.faith.chiyoko.loot.config.OverlayConfig
@@ -26,12 +26,12 @@ import lgbt.faith.chiyoko.loot.sequenceName
 import lgbt.faith.chiyoko.loot.sequences.*
 import kotlin.math.min
 
-class ChiyokoOverlayEditor(private val parent: Screen) : Screen(Component.translatable("chiyoko.overlay.title")) {
+class ChiyokoOverlayEditor(private val parent: Screen) : Screen(Text.translatable("chiyoko.overlay.title")) {
 
     private val configManager = Chiyoko.configManager
 
     private lateinit var list: OverlayList
-    private val tabButtons = mutableListOf<Pair<String, Button>>()
+    private val tabButtons = mutableListOf<Pair<String, ButtonWidget>>()
     var selectedKey: String? = null
 
     private val sequenceKeys: List<String>
@@ -49,13 +49,13 @@ class ChiyokoOverlayEditor(private val parent: Screen) : Screen(Component.transl
     override fun init() {
         refreshUI()
 
-        addRenderableWidget(Button.builder(Component.translatable("chiyoko.overlay.done")) {
-            onClose()
-        }.bounds(width / 2 - 100, height - 27, 200, 20).build())
+        addDrawableChild(ButtonWidget.builder(Text.translatable("chiyoko.overlay.done")) {
+            close()
+        }.dimensions(width / 2 - 100, height - 27, 200, 20).build())
     }
 
     private fun buildTabs(keys: List<String>) {
-        tabButtons.forEach { (_, button) -> removeWidget(button) }
+        tabButtons.forEach { (_, button) -> remove(button) }
         tabButtons.clear()
 
         val untracked = Chiyoko.sequences.map.keys.filter { configManager.config.getOverlay(it).tracked != true }
@@ -69,27 +69,27 @@ class ChiyokoOverlayEditor(private val parent: Screen) : Screen(Component.transl
         val y = 22
 
         keys.forEach { key ->
-            val button = Button.builder(Component.empty()) {
+            val button = ButtonWidget.builder(Text.empty()) {
                 selectedKey = key
                 buildList()
-            }.bounds(x, y, tabSize, tabSize)
-                .tooltip(Tooltip.create(sequenceName(key)))
+            }.dimensions(x, y, tabSize, tabSize)
+                .tooltip(Tooltip.of(sequenceName(key)))
                 .build()
 
             tabButtons += key to button
-            addRenderableWidget(button)
+            addDrawableChild(button)
             x += tabSize + spacing
         }
 
         if (showPlus) {
-            val plusButton = Button.builder(Component.literal("+")) {
+            val plusButton = ButtonWidget.builder(Text.literal("+")) {
                 openScreen(ChiyokoAddTrackerScreen(this))
-            }.bounds(x, y, tabSize, tabSize)
-                .tooltip(Tooltip.create(Component.translatable("chiyoko.overlay.add_tracker")))
+            }.dimensions(x, y, tabSize, tabSize)
+                .tooltip(Tooltip.of(Text.translatable("chiyoko.overlay.add_tracker")))
                 .build()
 
             tabButtons += "+" to plusButton
-            addRenderableWidget(plusButton)
+            addDrawableChild(plusButton)
         }
     }
 
@@ -115,10 +115,10 @@ class ChiyokoOverlayEditor(private val parent: Screen) : Screen(Component.transl
 
     private fun buildList() {
         if (::list.isInitialized) {
-            removeWidget(list)
+            remove(list)
         }
 
-        list = OverlayList(minecraft, width, height - 80, 50, 25)
+        list = OverlayList(client!!, width, height - 80, 50, 25)
         val key = selectedKey
 
         if (key != null) {
@@ -134,46 +134,46 @@ class ChiyokoOverlayEditor(private val parent: Screen) : Screen(Component.transl
                 list.addEntry(OverlayList.RollTypeEntry(key, overlay, configManager))
             }
             if (sequenceType is Fishing || sequenceType is PiglinBartering || sequenceType is Gravel || sequenceType is Vault) {
-                list.addEntry(OverlayList.AdvancesEntry(key, overlay, configManager, font))
+                list.addEntry(OverlayList.AdvancesEntry(key, overlay, configManager, textRenderer))
             }
             if (sequenceType is Vault) {
                 list.addEntry(OverlayList.SplitEntry(key, overlay, configManager))
             }
         } else {
-            list.addEntry(OverlayList.InfoEntry(Component.translatable("chiyoko.overlay.no_trackers")))
+            list.addEntry(OverlayList.InfoEntry(Text.translatable("chiyoko.overlay.no_trackers")))
         }
 
-        addRenderableWidget(list)
+        addDrawableChild(list)
     }
 
-    override fun onClose() {
+    override fun close() {
         configManager.save()
         openScreen(parent)
     }
 
-    override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, a: Float) {
-        list.extractWidgetRenderState(graphics, mouseX, mouseY, a)
-        super.extractRenderState(graphics, mouseX, mouseY, a)
+    override fun render(graphics: DrawContext, mouseX: Int, mouseY: Int, a: Float) {
+        list.render(graphics, mouseX, mouseY, a)
+        super.render(graphics, mouseX, mouseY, a)
 
         tabButtons.forEach { (key, button) ->
             if (key != "+") {
                 val stack = getItemForSequence(key)
-                graphics.item(stack, button.x + 2, button.y + 2)
+                graphics.drawItem(stack, button.x + 2, button.y + 2)
             }
 
             if (key == selectedKey && key != "+") {
-                val indicator = Component.literal("●").withStyle(ChatFormatting.YELLOW)
-                val textX = button.x + (button.width - font.width(indicator)) / 2
-                graphics.text(font, indicator, textX + 1, button.y + button.height - 1, 0xFFFFFFFF.toInt())
+                val indicator = Text.literal("●").formatted(Formatting.YELLOW)
+                val textX = button.x + (button.width - textRenderer.getWidth(indicator)) / 2
+                graphics.drawTextWithShadow(textRenderer, indicator, textX + 1, button.y + button.height - 1, 0xFFFFFFFF.toInt())
             }
         }
     }
 }
 
-class ChiyokoAddTrackerScreen(private val parent: ChiyokoOverlayEditor) : Screen(Component.translatable("chiyoko.add_tracker.title")) {
+class ChiyokoAddTrackerScreen(private val parent: ChiyokoOverlayEditor) : Screen(Text.translatable("chiyoko.add_tracker.title")) {
 
     private val configManager = Chiyoko.configManager
-    private val gridButtons = mutableListOf<Pair<String, Button>>()
+    private val gridButtons = mutableListOf<Pair<String, ButtonWidget>>()
 
     override fun init() {
         val untracked = Chiyoko.sequences.map.keys.filter { configManager.config.getOverlay(it).tracked != true }
@@ -193,40 +193,40 @@ class ChiyokoAddTrackerScreen(private val parent: ChiyokoOverlayEditor) : Screen
 
             val x = startX + col * (buttonSize + spacing)
             val y = startY + row * (buttonSize + spacing)
-            val btn = Button.builder(Component.empty()) {
+            val btn = ButtonWidget.builder(Text.empty()) {
                 configManager.config.updateOverlay(key) { tracked = true }
                 parent.selectedKey = key
                 openScreen(parent)
                 parent.refreshUI()
-            }.bounds(x, y, buttonSize, buttonSize)
-                .tooltip(Tooltip.create(Component.translatable("chiyoko.add_tracker.track", sequenceName(key))))
+            }.dimensions(x, y, buttonSize, buttonSize)
+                .tooltip(Tooltip.of(Text.translatable("chiyoko.add_tracker.track", sequenceName(key))))
                 .build()
 
             gridButtons += key to btn
-            addRenderableWidget(btn)
+            addDrawableChild(btn)
         }
 
-        addRenderableWidget(Button.builder(Component.translatable("chiyoko.add_tracker.cancel")) {
-            onClose()
-        }.bounds(width / 2 - 50, height - 35, 100, 20).build())
+        addDrawableChild(ButtonWidget.builder(Text.translatable("chiyoko.add_tracker.cancel")) {
+            close()
+        }.dimensions(width / 2 - 50, height - 35, 100, 20).build())
     }
 
-    override fun onClose() {
+    override fun close() {
         openScreen(parent)
     }
 
-    override fun extractRenderState(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, a: Float) {
-        super.extractRenderState(graphics, mouseX, mouseY, a)
+    override fun render(graphics: DrawContext, mouseX: Int, mouseY: Int, a: Float) {
+        super.render(graphics, mouseX, mouseY, a)
 
         gridButtons.forEach { (key, button) ->
             val stack = parent.getItemForSequence(key)
-            graphics.item(stack, button.x + 2, button.y + 2)
+            graphics.drawItem(stack, button.x + 2, button.y + 2)
         }
     }
 }
 
-class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: Int) : ContainerObjectSelectionList<OverlayList.Entry>(mc, width, height, y0, itemHeight) {
-    abstract class Entry : ContainerObjectSelectionList.Entry<Entry>()
+class OverlayList(mc: MinecraftClient, width: Int, height: Int, y0: Int, itemHeight: Int) : ElementListWidget<OverlayList.Entry>(mc, width, height, y0, itemHeight) {
+    abstract class Entry : ElementListWidget.Entry<Entry>()
 
     public override fun addEntry(entry: Entry): Int {
         return super.addEntry(entry)
@@ -234,115 +234,115 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
 
     // label on the left, widget on the right
     abstract class LabeledEntry(labelKey: String) : Entry() {
-        private val label: Component = Component.translatable(labelKey)
+        private val label: Text = Text.translatable(labelKey)
         private var _focused = false
-        protected abstract val widget: AbstractWidget
+        protected abstract val widget: ClickableWidget
 
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            graphics.text(mc.font, label, contentX, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
-            widget.setPosition(contentRight - 150, contentY)
-            widget.extractRenderState(graphics, mouseX, mouseY, a)
+        override fun render(graphics: DrawContext, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
+            val mc = MinecraftClient.getInstance()
+            graphics.drawTextWithShadow(mc.textRenderer, label, contentX, contentMiddleY - mc.textRenderer.fontHeight / 2, 0xFFFFFFFF.toInt())
+            widget.setPosition(contentRightEnd - 150, contentY)
+            widget.render(graphics, mouseX, mouseY, a)
         }
 
-        override fun children(): List<GuiEventListener> = listOf(widget)
-        override fun narratables(): List<NarratableEntry> = listOf(widget)
+        override fun children(): List<Element> = listOf(widget)
+        override fun selectableChildren(): List<Selectable> = listOf(widget)
 
         override fun setFocused(focused: Boolean) {_focused = focused}
         override fun isFocused(): Boolean {return _focused}
 
         companion object {
-            fun toggleLabel(value: Boolean, trueKey: String = "chiyoko.toggle.true", falseKey: String = "chiyoko.toggle.false"): Component {
+            fun toggleLabel(value: Boolean, trueKey: String = "chiyoko.toggle.true", falseKey: String = "chiyoko.toggle.false"): Text {
                 return if (value) {
-                    Component.translatable(trueKey).withStyle(ChatFormatting.GREEN)
+                    Text.translatable(trueKey).formatted(Formatting.GREEN)
                 } else {
-                    Component.translatable(falseKey).withStyle(ChatFormatting.RED)
+                    Text.translatable(falseKey).formatted(Formatting.RED)
                 }
             }
         }
     }
 
     class UntrackEntry(val key: String, val configManager: ChiyokoConfigManager, val editor: ChiyokoOverlayEditor) : LabeledEntry("chiyoko.overlay.tracking") {
-        private val button = Button.builder(Component.translatable("chiyoko.overlay.untrack").withStyle(ChatFormatting.RED)) {
+        private val button = ButtonWidget.builder(Text.translatable("chiyoko.overlay.untrack").formatted(Formatting.RED)) {
             configManager.config.updateOverlay(key) { tracked = false }
             editor.selectedKey = null
             editor.refreshUI()
-        }.bounds(0, 0, 150, 20).build()
+        }.dimensions(0, 0, 150, 20).build()
 
         override val widget get() = button
     }
 
-    class InfoEntry(val text: Component) : Entry() {
-        override fun extractContent(graphics: GuiGraphicsExtractor, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
-            val mc = Minecraft.getInstance()
-            val textComponent = text.copy().withStyle(ChatFormatting.GRAY)
-            graphics.text(mc.font, textComponent, contentX + (contentWidth - mc.font.width(textComponent)) / 2, contentYMiddle - mc.font.lineHeight / 2, 0xFFFFFFFF.toInt())
+    class InfoEntry(val text: Text) : Entry() {
+        override fun render(graphics: DrawContext, mouseX: Int, mouseY: Int, hovered: Boolean, a: Float) {
+            val mc = MinecraftClient.getInstance()
+            val textComponent = text.copy().formatted(Formatting.GRAY)
+            graphics.drawTextWithShadow(mc.textRenderer, textComponent, contentX + (contentWidth - mc.textRenderer.getWidth(textComponent)) / 2, contentMiddleY - mc.textRenderer.fontHeight / 2, 0xFFFFFFFF.toInt())
         }
-        override fun children(): List<GuiEventListener> = emptyList()
-        override fun narratables(): List<NarratableEntry> = emptyList()
+        override fun children(): List<Element> = emptyList()
+        override fun selectableChildren(): List<Selectable> = emptyList()
         override fun setFocused(focused: Boolean) {}
         override fun isFocused(): Boolean = false
     }
 
     class VisibleEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("chiyoko.overlay.visibility") {
-        private val button = Button.builder(visibleLabel()) {
+        private val button = ButtonWidget.builder(visibleLabel()) {
             overlay.visible = !overlay.visible
             it.message = visibleLabel()
             configManager.config.updateOverlay(key) { visible = overlay.visible }
-        }.bounds(0, 0, 150, 20).build()
+        }.dimensions(0, 0, 150, 20).build()
 
         override val widget get() = button
 
-        private fun visibleLabel(): Component = toggleLabel(overlay.visible, "chiyoko.toggle.shown", "chiyoko.toggle.hidden")
+        private fun visibleLabel(): Text = toggleLabel(overlay.visible, "chiyoko.toggle.shown", "chiyoko.toggle.hidden")
     }
 
     class RotationEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("chiyoko.overlay.rotation") {
-        private val button = Button.builder(rotationLabel()) {
+        private val button = ButtonWidget.builder(rotationLabel()) {
             overlay.rotation = when (overlay.rotation) {
                 OverlayRotation.HORIZONTAL -> OverlayRotation.VERTICAL
                 OverlayRotation.VERTICAL -> OverlayRotation.HORIZONTAL
             }
             it.message = rotationLabel()
             configManager.config.updateOverlay(key) { rotation = overlay.rotation }
-        }.bounds(0, 0, 150, 20).build()
+        }.dimensions(0, 0, 150, 20).build()
 
         override val widget get() = button
 
-        private fun rotationLabel(): MutableComponent {
+        private fun rotationLabel(): MutableText {
             return when (overlay.rotation) {
-                OverlayRotation.VERTICAL -> Component.translatable("chiyoko.overlay.rotation.vertical")
-                OverlayRotation.HORIZONTAL -> Component.translatable("chiyoko.overlay.rotation.horizontal")
+                OverlayRotation.VERTICAL -> Text.translatable("chiyoko.overlay.rotation.vertical")
+                OverlayRotation.HORIZONTAL -> Text.translatable("chiyoko.overlay.rotation.horizontal")
             }
         }
     }
 
     class ReversedEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("chiyoko.overlay.reversed") {
-        private val button = Button.builder(reversedLabel()) {
+        private val button = ButtonWidget.builder(reversedLabel()) {
             overlay.reversed = !overlay.reversed
             it.message = reversedLabel()
             configManager.config.updateOverlay(key) { reversed = overlay.reversed }
-        }.bounds(0, 0, 150, 20).build()
+        }.dimensions(0, 0, 150, 20).build()
 
         override val widget get() = button
 
-        private fun reversedLabel(): Component = toggleLabel(overlay.reversed)
+        private fun reversedLabel(): Text = toggleLabel(overlay.reversed)
     }
 
     class RollTypeEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("chiyoko.overlay.roll_type") {
-        private val button = Button.builder(rollTypeLabel()) {
+        private val button = ButtonWidget.builder(rollTypeLabel()) {
             overlay.rollType = when (overlay.rollType ?: RollType.KillsUntilItem) {
                 RollType.NextDrop -> RollType.KillsUntilItem
                 RollType.KillsUntilItem -> RollType.NextDrop
             }
             it.message = rollTypeLabel()
             configManager.config.updateOverlay(key) { rollType = overlay.rollType }
-        }.bounds(0, 0, 150, 20).build()
+        }.dimensions(0, 0, 150, 20).build()
 
         override val widget get() = button
 
-        private fun rollTypeLabel(): Component = when (overlay.rollType ?: RollType.KillsUntilItem) {
-            RollType.NextDrop -> Component.translatable("chiyoko.overlay.roll_type.next_drop")
-            RollType.KillsUntilItem -> Component.translatable("chiyoko.overlay.roll_type.kills_until_item")
+        private fun rollTypeLabel(): Text = when (overlay.rollType ?: RollType.KillsUntilItem) {
+            RollType.NextDrop -> Text.translatable("chiyoko.overlay.roll_type.next_drop")
+            RollType.KillsUntilItem -> Text.translatable("chiyoko.overlay.roll_type.kills_until_item")
         }
     }
 
@@ -350,16 +350,16 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
         private val key: String,
         private val overlay: OverlayConfig,
         private val configManager: ChiyokoConfigManager,
-        font: Font
+        font: TextRenderer
     ) : LabeledEntry("chiyoko.overlay.advances") {
-        private val editBox = EditBox(font, 0, 0, 150, 20, Component.translatable("chiyoko.overlay.advances")).also {
-            it.value = overlay.advances.toString()
-            it.setResponder { s ->
+        private val editBox = TextFieldWidget(font, 0, 0, 150, 20, Text.translatable("chiyoko.overlay.advances")).also {
+            it.text = overlay.advances.toString()
+            it.setChangedListener { s ->
                 if (s.isNotEmpty() && !s.matches(Regex("-?\\d*"))) {
-                    it.value = s.replace(Regex("[^0-9-]"), "").toInt().coerceAtLeast(1).toString()
+                    it.text = s.replace(Regex("[^0-9-]"), "").toInt().coerceAtLeast(1).toString()
                 }
 
-                val v = s.toIntOrNull() ?: return@setResponder
+                val v = s.toIntOrNull() ?: return@setChangedListener
                 overlay.advances = v
                 configManager.config.updateOverlay(key) { advances = v }
             }
@@ -369,14 +369,14 @@ class OverlayList(mc: Minecraft, width: Int, height: Int, y0: Int, itemHeight: I
     }
 
     class SplitEntry(val key: String, val overlay: OverlayConfig, val configManager: ChiyokoConfigManager) : LabeledEntry("chiyoko.overlay.split") {
-        private val button = Button.builder(splitLabel()) {
+        private val button = ButtonWidget.builder(splitLabel()) {
             overlay.split = !overlay.split
             it.message = splitLabel()
             configManager.config.updateOverlay(key) { split = overlay.split }
-        }.bounds(0, 0, 150, 20).build()
+        }.dimensions(0, 0, 150, 20).build()
 
         override val widget get() = button
 
-        private fun splitLabel(): Component = toggleLabel(overlay.split)
+        private fun splitLabel(): Text = toggleLabel(overlay.split)
     }
 }

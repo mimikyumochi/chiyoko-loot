@@ -1,15 +1,15 @@
 package lgbt.faith.chiyoko.loot.mixin
 
-import net.minecraft.world.entity.projectile.FishingHook
+import net.minecraft.entity.projectile.FishingBobberEntity
 import org.spongepowered.asm.mixin.Mixin
 import org.spongepowered.asm.mixin.gen.Accessor
 
-@Mixin(FishingHook::class)
+@Mixin(FishingBobberEntity::class)
 interface FishingHookAccessor {
-    @Accessor("openWater")
+    @Accessor("inOpenWater")
     fun isOpenWater(): Boolean
 
-    @Accessor("biting")
+    @Accessor("caughtFish")
     fun biting(): Boolean
 
 
