@@ -125,6 +125,8 @@ object EnchantFunctions {
             Enchantment.ALL.sortedBy { def -> EligibleEnchantments.legacyOrderIndex(def.id) }
         } else {
             Enchantment.ALL
+                .filter { def -> EligibleEnchantments.onRandomLootIndex(def.id) != Int.MAX_VALUE }
+                .sortedBy { def -> EligibleEnchantments.onRandomLootIndex(def.id) }
         }
 
         return allEnchants

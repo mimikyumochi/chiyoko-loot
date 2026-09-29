@@ -238,6 +238,16 @@ object EligibleEnchantments {
     val FISHING = BOOK.filter { it !in listOf("wind_burst", "soul_speed", "swift_sneak")}.toSet() // these are exclusive to certain structures
     val ENCHANT_TABLE = FISHING.filter { it !in listOf("mending", "vanishing_curse", "binding_curse", "frost_walker")}.toSet() // these are treasure
 
+    // #minecraft:on_random_loot, which enchant_with_levels walks in tag order: #non_treasure then the treasure entries
+    val ON_RANDOM_LOOT_ORDER = LEGACY_REGISTRY_ORDER + listOf(
+        "binding_curse", "vanishing_curse", "frost_walker", "mending"
+    )
+
+    fun onRandomLootIndex(id: String): Int {
+        val index = ON_RANDOM_LOOT_ORDER.indexOf(id)
+        return if (index == -1) Int.MAX_VALUE else index
+    }
+
     fun legacyOrderIndex(id: String): Int {
         val index = LEGACY_REGISTRY_ORDER.indexOf(id)
         return if (index == -1) Int.MAX_VALUE else index
